@@ -34,6 +34,8 @@ export default defineConfig(async () => ({
         entry: {
           main: "src/main/index.ts",
           "plugin-worker": "src/main/plugins/worker.ts",
+          // 插件作者 API：子进程用 resolve hook 把 `oint:plugin` 指到这里（dist-electron/plugin-api.js）
+          "plugin-api": "src/main/plugins/plugin-api.ts",
         },
         vite: {
           resolve: { alias },

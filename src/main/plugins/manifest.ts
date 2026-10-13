@@ -81,7 +81,10 @@ const packageSchema = Type.Object({
   ),
 });
 
-/** Application metadata only. Chord owns bundle format, code loading and integrity. */
+/**
+ * Application metadata only. Chord 1.0 时代的 bundle 字段（`external` / `sourceMap`）保留在 schema 里
+ * 只为让旧包通过清单校验、在 artifact 体检处拿到「旧格式需重新打包」的明确报错（见 artifact.ts）。
+ */
 export function validatePluginManifest(raw: unknown): PluginManifestResult {
   if (!Value.Check(packageSchema, raw))
     return {

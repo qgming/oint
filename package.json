@@ -20,12 +20,10 @@
     "npm": ">=10"
   },
   "scripts": {
-    "dev": "npm run build:plugins && vite --config vite.renderer.config.ts",
+    "dev": "vite --config vite.renderer.config.ts",
     "start": "node scripts/launch-electron.cjs .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "build:plugins": "node scripts/build-plugins.mjs",
-    "build": "npm run check:pi && npm run build:plugins && npm run typecheck && vite build --config vite.renderer.config.ts",
-    "pretest": "npm run build:plugins",
+    "build": "npm run check:pi && npm run typecheck && vite build --config vite.renderer.config.ts",
     "test": "vitest run",
     "check:unwired": "node scripts/check-unwired.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",

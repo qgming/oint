@@ -1,121 +1,135 @@
-import { MessageChannel, type MessagePort } from "node:worker_threads";
-import { type Context, createFacetHost, defineFacet } from "@earendil-works/chord";
+// 插件进程链路契约（chord 1.2 新运行时）：
+//   - 父进程 attach（accept + ready 握手 + 句柄）后可以 invoke 方法、订阅描述状态；
+//   - 调用方取消/超时经 Chord 根的信号传到子侧执行的 ctx.signal；
+//   - retire 保留在飞调用、拒绝新调用、结束即停；
+//   - 断开让未决调用兑现（拒绝）。
+// 子侧用内存端口 + 内存 facet（不落盘、不起进程），语义与 worker.ts 的子 host 相同。
+import { cell, createHost, type Ctx, type Draft, defineFacet, ipcLink } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import { afterEach, describe, expect, it } from "vitest";
-import { PluginAgent, type PluginAgentDescription } from "./agent-service";
-import { connectPluginProcess } from "./plugin-process";
-import { type BytePort, createPluginServer } from "./transport";
+import { createMemoryPortPair, toIpcChannel } from "./link";
+import {
+  PluginAgent,
+  type PluginAgentDescription,
+  pluginAgentDescriptionSchema,
+} from "./plugin-api";
+import { attachPluginProcess } from "./plugin-process";
 
-function bytePort(port: MessagePort): BytePort {
-  return {
-    postMessage: (value) => port.postMessage(value),
-    close: () => port.close(),
-    onData(listener) {
-      port.on("message", listener);
-      return () => port.off("message", listener);
-    },
-    onClose(listener) {
-      port.on("close", listener);
-      return () => port.off("close", listener);
-    },
-  };
-}
-const cleanups: (() => Promise<unknown>)[] = [];
+const cleanups: (() => Promise<unknown> | unknown)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
+
 const description: PluginAgentDescription = {
   tools: [{ name: "echo", description: "Echo", parameters: { type: "object" } }],
   commands: [],
   sections: [],
 };
 
-async function setup(execute: (context: Context) => Promise<string> = async () => "ok") {
-  let update!: (name: string) => void;
-  const host = await createFacetHost({
-    facets: [
-      defineFacet({
-        id: "test",
-        setup(env) {
-          const state = env.replicatedState(structuredClone(description));
-          update = (name) =>
-            state.change(BACKGROUND_CONTEXT, (draft) => {
-              if (draft.tools[0]) draft.tools[0].description = name;
-            });
-          env.provide(PluginAgent, {
-            description: state,
-            async execute(_name, _args, _invocation, context) {
-              return { content: [{ type: "text", text: await execute(context) }] };
-            },
-            async command() {
-              return "command";
-            },
-            async beforeTool() {
-              return {};
-            },
-            async afterTool(_call, result) {
-              return result;
-            },
-          });
-        },
-      }),
-    ],
+async function setup(execute: (ctx: Ctx) => Promise<string> = async () => "ok") {
+  let updateImpl: ((name: string) => void) | undefined;
+  const update = (name: string): void => updateImpl?.(name);
+  const [parentRaw, childRaw] = createMemoryPortPair();
+  const childHost = createHost({
+    name: "plugin:test",
+    upstream: ipcLink(toIpcChannel(childRaw)),
   });
-  cleanups.push(() => host.dispose());
-  const { port1, port2 } = new MessageChannel();
-  const server = createPluginServer(
-    host.services,
-    bytePort(port2),
-    "3fc4af76-1359-4b26-9e8f-bdb675936eda",
-  );
-  await server.start();
-  cleanups.push(() => server.close());
-  const process = await connectPluginProcess(
-    bytePort(port1),
-    "3fc4af76-1359-4b26-9e8f-bdb675936eda",
-    () => {},
-  );
-  cleanups.push(async () => process.stop());
+  cleanups.push(() => childHost.close());
+  const facet = defineFacet((childApi) => {
+    childApi.serve(PluginAgent, (_input, _principal, self) => {
+      const state = self.state({
+        description: cell(pluginAgentDescriptionSchema, structuredClone(description)),
+      });
+      updateImpl = (name) => {
+        // cell 的写入需要一个 Chord 根（Ctx），且 principal 必须与该记录一致：
+        // 父 host 取走的这份记录以 `{host: 父host名}` 为 principal（上游链路的规则）。
+        void childHost
+          .root(
+            (ctx) => {
+              state.description.change(ctx, (draft: Draft<PluginAgentDescription>) => {
+                if (draft.tools[0]) draft.tools[0].description = name;
+              });
+            },
+            { principal: { host: "oint-plugins" } },
+          )
+          .catch(() => undefined);
+      };
+      return {
+        kind: "default",
+        description: state.description,
+        async execute(_args, ctx) {
+          return { output: [{ type: "text", text: await execute(ctx) }] };
+        },
+        async command() {
+          return "command";
+        },
+        async beforeTool() {
+          return {};
+        },
+        async afterTool({ result }) {
+          return result;
+        },
+      };
+    });
+  });
+  const host = createHost({ name: "oint-plugins" });
+  cleanups.push(() => host.close());
+  const processPromise = attachPluginProcess({
+    host,
+    port: parentRaw,
+    hostName: "plugin:test",
+    onExit: () => {},
+    kill: () => {
+      void childHost.close();
+    },
+  });
+  await childHost.load([{ ...facet, name: "test" }]);
+  childRaw.post({ ointControl: "ready" });
+  const process = await processPromise;
+  cleanups.push(() => process.stop());
   return { process, update };
 }
+
 const invoke = (
   process: Awaited<ReturnType<typeof setup>>["process"],
-  context = BACKGROUND_CONTEXT,
+  parent = BACKGROUND_CONTEXT,
   timeout?: number,
 ) =>
   process.invoke(
-    (service, context) =>
+    (service, ctx) =>
       service.execute(
-        "echo",
-        {},
-        { callId: "c", taskId: "t", conversationId: "s", cwd: "" },
-        context,
+        { name: "echo", args: {}, invocation: { callId: "c", taskId: "t", conversationId: "s", cwd: "" } },
+        ctx,
       ),
-    context,
+    parent,
     timeout,
   );
 
-describe("official Client/Server on MessagePort", () => {
-  it("invokes a Chord facet service and hydrates/updates replicated descriptors", async () => {
+describe("plugin host link (chord 1.2)", () => {
+  it("invokes PluginAgent.execute and hydrates/updates the description state", async () => {
     const { process, update } = await setup();
-    expect(await invoke(process)).toMatchObject({ content: [{ text: "ok" }] });
+    expect(await invoke(process)).toMatchObject({ output: [{ text: "ok" }] });
+    // 远端状态成员需要订阅才会持续推送增量（process-host 同样是订阅方）。
+    const stop = process.description.subscribe(() => {});
+    cleanups.push(stop);
     update("New description");
     await expect
-      .poll(() => process.service.description.value?.tools[0]?.description)
+      .poll(() => process.description.value?.tools[0]?.description)
       .toBe("New description");
   });
-  it("delivers caller cancellation to the service execution context", async () => {
+
+  it("delivers caller cancellation to the plugin execution context", async () => {
     let started = false;
     let cancelled = false;
     const { process } = await setup(
-      (context) =>
+      (ctx) =>
         new Promise((_resolve, reject) => {
           started = true;
-          context.abortSignal?.addEventListener(
+          ctx.signal.addEventListener(
             "abort",
             () => {
               cancelled = true;
-              reject(context.abortSignal?.reason);
+              reject(ctx.signal.reason);
             },
             { once: true },
           );
@@ -129,6 +143,7 @@ describe("official Client/Server on MessagePort", () => {
     await rejected;
     await expect.poll(() => cancelled).toBe(true);
   });
+
   it("keeps a started invocation alive while retiring its generation", async () => {
     let finish!: (value: string) => void;
     const { process } = await setup(
@@ -143,15 +158,16 @@ describe("official Client/Server on MessagePort", () => {
     expect(process.alive).toBe(true);
     await expect(invoke(process)).rejects.toThrow("卸载");
     finish("old generation finished");
-    expect(await call).toMatchObject({ content: [{ text: "old generation finished" }] });
+    expect(await call).toMatchObject({ output: [{ text: "old generation finished" }] });
     expect(process.alive).toBe(false);
   });
+
   it("deadline cancels remote execution and disconnected calls settle", async () => {
     let cancelled = false;
     const { process } = await setup(
-      (context) =>
+      (ctx) =>
         new Promise((_resolve, reject) => {
-          context.abortSignal?.addEventListener(
+          ctx.signal.addEventListener(
             "abort",
             () => {
               cancelled = true;

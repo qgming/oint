@@ -53,7 +53,7 @@ export interface PluginPackage {
 
   shell?: { exec: string[] };
 
-  /** Chord agent facet source; execution loads its prebuilt dist/chord-facets.json. */
+  /** Chord agent 入口（相对插件根目录，源码直载：.ts 由子进程用 Node 类型剥离加载） */
   agentFacet?: string;
 
   hooks: PluginHookName[];

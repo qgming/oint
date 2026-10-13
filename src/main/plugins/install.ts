@@ -1,6 +1,5 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { bundleFacetPackage } from "@earendil-works/chord/bundler";
 import { pluginDataDir, pluginDirName, pluginsDir } from "@/main/app/paths";
 import { extractZipFile, readZipEntry, zipPrefixFor } from "@/main/storage/zip";
 import { verifyPluginArtifact } from "./artifact";
@@ -143,7 +142,7 @@ export async function addDevPlugin(pluginDir: string, dataDir: string): Promise<
 
   const absolute = path.resolve(pluginDir);
   if (result.manifest.agentFacet) {
-    await bundleFacetPackage({ packagePath: absolute, outdir: path.join(absolute, "dist") });
+    // 源码直载：不再预构建，只做入口体检（存在性、真实路径、旧格式明确报错）。
     await verifyPluginArtifact(absolute, result.manifest);
   }
   const list = await readDevList(dataDir);

@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { type MutableReplicatedState, replicatedState } from "@earendil-works/chord";
+import { type Ctx, type MutableReplicatedState, replicatedState } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createRegistry, type ToolExecutionApi, type ToolHooks } from "@earendil-works/pi-durable";
 import { describe, expect, it, vi } from "vitest";
-import type { PluginAgentDescription, PluginAgentService } from "./agent-service";
+import { type PluginAgentDescription } from "./plugin-api";
 import { validatePluginManifest } from "./manifest";
 import type { PluginProcess } from "./plugin-process";
 import { createPluginProcessHost, type PluginProcessSource } from "./process-host";
@@ -18,36 +18,37 @@ async function source(): Promise<PluginProcessSource> {
   if (!result.ok) throw new Error("fixture");
   return { id: result.manifest.id, dir, manifest: result.manifest };
 }
+
+/**
+ * 内存替身：形状对齐新 PluginProcess（description 状态 + invoke(operation)）。
+ * `service` 是子侧 PluginAgent 实现（单对象入参），测试可以直接改写它的方法。
+ */
 function process(
   version: string,
   sections: PluginAgentDescription["sections"] = [],
-): PluginProcess {
-  const service: PluginAgentService = {
-    description: replicatedState({
-      tools: [{ name: "test", description: version, parameters: { type: "object" } }],
-      commands: [],
-      sections,
-    }),
-    async execute() {
-      return { content: [{ type: "text", text: version }] };
-    },
-    async command() {
-      return version;
-    },
-    async beforeTool() {
-      return {};
-    },
-    async afterTool(_call, result) {
-      return result;
-    },
+): PluginProcess & { service: Record<string, unknown> } {
+  const description = replicatedState<PluginAgentDescription>({
+    tools: [{ name: "test", description: version, parameters: { type: "object" } }],
+    commands: [],
+    sections,
+  });
+  const service = {
+    description,
+    execute: async () => ({ output: [{ type: "text" as const, text: version }] }),
+    command: async () => version,
+    beforeTool: async () => ({}),
+    afterTool: async ({ result }: { result: unknown }) => result,
   };
-  return {
-    service,
+  const fake = {
+    description: description as unknown as PluginProcess["description"],
     alive: true,
-    invoke: (operation, context) => operation(service, context),
+    invoke: <T>(operation: (service: never, ctx: Ctx) => Promise<T>) =>
+      operation(service as never, {} as Ctx),
     retire: vi.fn(),
     stop: vi.fn(),
-  };
+  } satisfies PluginProcess;
+  // validateAgentDescription 在宿主里会对订阅值做校验；替身明确引用它，防止它成为死代码。
+  return Object.assign(fake, { service });
 }
 describe("native plugin extension publication", () => {
   it("registers real native sections when the source hash begins with a digit", async () => {
@@ -77,7 +78,7 @@ describe("native plugin extension publication", () => {
         await new Promise<void>((resolve) => {
           finish = resolve;
         });
-        return { content: [{ type: "text", text: "old completed" }] };
+        return { output: [{ type: "text" as const, text: "old completed" }] };
       };
       const candidate = process("two", [{ key: invalidKey, text: "bad" }]);
       const host = createPluginProcessHost({
@@ -102,7 +103,7 @@ describe("native plugin extension publication", () => {
       expect(candidate.stop).toHaveBeenCalledOnce();
       expect(host.issues()).toHaveLength(1);
       finish();
-      expect(await pending).toMatchObject({ content: [{ text: "old completed" }] });
+      expect(await pending).toMatchObject({ output: [{ text: "old completed" }] });
       host.stopAll();
     },
   );

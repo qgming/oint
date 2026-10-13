@@ -1,23 +1,23 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { JsonValue } from "@earendil-works/chord";
-import { bundleFacetPackage } from "@earendil-works/chord/bundler";
+import { createHost, type Host, type JsonValue } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { readFacetBundleArtifact } from "@earendil-works/chord/node";
 import {
   createRegistry,
   defineExtension,
   type Extension,
   hook,
   section,
+  type ToolExecutionResult,
   type ToolRegistration,
   ToolTask,
 } from "@earendil-works/pi-durable";
 import type { TSchema } from "typebox";
 import { dataDir, pluginDataDir } from "@/main/app/paths";
 import type { PluginCommandView, PluginPackage } from "@/shared/contracts/plugin";
-import { type PluginAgentDescription, validateAgentDescription } from "./agent-service";
-import { verifyPluginArtifact } from "./artifact";
+import { resolvePluginEntry } from "./artifact";
+import { type PluginAgentDescription, validateAgentDescription } from "./plugin-api";
 import {
   type PluginProcess,
   type PluginProcessFactory,
@@ -57,6 +57,40 @@ export function pluginToolName(pluginId: string, tool: string): string {
 }
 function extensionName(source: PluginProcessSource): string {
   return `plugin:${source.id}:${key(source.dir)}`;
+}
+
+const DESCRIPTION_TIMEOUT_MS = 5000;
+
+/** 等到插件发布第一份描述（状态是 snapshot + delta，ready 后首个值可能还差一拍）。 */
+function firstDescription(
+  state: PluginProcess["description"],
+): Promise<PluginAgentDescription> {
+  const current = state.value;
+  if (current !== undefined) return Promise.resolve(current);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let stop: (() => void) | undefined;
+    const timer = setTimeout(() => {
+      settled = true;
+      stop?.();
+      reject(new Error("插件在启动后没有发布描述"));
+    }, DESCRIPTION_TIMEOUT_MS);
+    stop = state.subscribe((value) => {
+      if (value === undefined || settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+      stop?.();
+    });
+    if (settled) stop();
+  });
+}
+
+/** 所有插件子 host 接入的共享父 host（进程级单例，随应用生命周期存在）。 */
+let sharedPluginHost: Host | undefined;
+function pluginHost(): Host {
+  sharedPluginHost ??= createHost({ name: "oint-plugins" });
+  return sharedPluginHost;
 }
 
 export interface PluginProcessHost {
@@ -125,21 +159,24 @@ export function createPluginProcessHost(
           name: pluginToolName(source.id, tool.name),
           parameters: tool.parameters as TSchema,
           async execute(args, api, context) {
-            return process.invoke(
-              (service, context) =>
+            const result = await process.invoke(
+              (service, ctx) =>
                 service.execute(
-                  tool.name,
-                  args as { [key: string]: JsonValue },
                   {
-                    callId: api.callId,
-                    taskId: String(api.taskId),
-                    conversationId: String(api.conversationId),
-                    cwd: api.env?.cwd ?? "",
+                    name: tool.name,
+                    args: args as { [key: string]: JsonValue },
+                    invocation: {
+                      callId: api.callId,
+                      taskId: String(api.taskId),
+                      conversationId: String(api.conversationId),
+                      cwd: api.env?.cwd ?? "",
+                    },
                   },
-                  context,
+                  ctx,
                 ),
               context,
             );
+            return result as ToolExecutionResult;
           },
         }))
       : [];
@@ -156,14 +193,16 @@ export function createPluginProcessHost(
                 ? {
                     beforeTool: (call, api, context) =>
                       process.invoke(
-                        (service, context) =>
+                        (service, ctx) =>
                           service.beforeTool(
-                            call,
                             {
-                              taskId: String(api.taskId),
-                              conversationId: String(api.conversationId),
+                              call,
+                              invocation: {
+                                taskId: String(api.taskId),
+                                conversationId: String(api.conversationId),
+                              },
                             },
-                            context,
+                            ctx,
                           ),
                         context,
                         5000,
@@ -172,21 +211,25 @@ export function createPluginProcessHost(
                 : {}),
               ...(source.manifest.hooks.includes("afterTool")
                 ? {
-                    afterTool: (call, result, api, context) =>
-                      process.invoke(
-                        (service, context) =>
+                    afterTool: async (call, result, api, context) => {
+                      const value = await process.invoke(
+                        (service, ctx) =>
                           service.afterTool(
-                            call,
-                            result,
                             {
-                              taskId: String(api.taskId),
-                              conversationId: String(api.conversationId),
+                              call,
+                              result,
+                              invocation: {
+                                taskId: String(api.taskId),
+                                conversationId: String(api.conversationId),
+                              },
                             },
-                            context,
+                            ctx,
                           ),
                         context,
                         5000,
-                      ),
+                      );
+                      return value as ToolExecutionResult;
+                    },
                   }
                 : {}),
             }),
@@ -232,23 +275,19 @@ export function createPluginProcessHost(
       }
       let candidate: PluginProcess | undefined;
       try {
-        const manifestPath = path.join(source.dir, "dist", "chord-facets.json");
-        if (source.development)
-          await bundleFacetPackage({
-            packagePath: source.dir,
-            outdir: path.join(source.dir, "dist"),
-          });
-        await verifyPluginArtifact(source.dir, source.manifest);
-        const artifact = await readFacetBundleArtifact({ manifestPath, entry: "agent" });
-        if (artifact.plugin.id !== source.id || artifact.plugin.version !== source.manifest.version)
-          throw new Error("Chord bundle identity differs from package.json");
-        const signature = JSON.stringify([artifact.entry.integrity, source.manifest]);
+        const entryPath = await resolvePluginEntry(source.dir, source.manifest);
+        if (entryPath === undefined) throw new Error("插件没有 agent 入口");
+        const signature = JSON.stringify([
+          createHash("sha256").update(await readFile(entryPath)).digest("hex"),
+          source.manifest,
+        ]);
         const previous = running.get(source.dir);
         if (previous?.signature === signature && previous.process.alive) continue;
         candidate = await start({
+          host: pluginHost(),
           pluginId: source.id,
           pluginDir: source.dir,
-          manifestPath,
+          entryPath,
           dataDir: pluginDataDir(source.id, dataDir()),
           onExit(message) {
             const entry = running.get(source.dir);
@@ -259,7 +298,7 @@ export function createPluginProcessHost(
           },
         });
         const process = candidate;
-        const description = process.service.description.value;
+        const description = await firstDescription(process.description);
         validateAgentDescription(description);
         const entry: Running = {
           source,
@@ -269,7 +308,8 @@ export function createPluginProcessHost(
           extension: materialize(source, process, description),
           unsubscribe: () => {},
         };
-        entry.unsubscribe = process.service.description.subscribe((value) => {
+        entry.unsubscribe = process.description.subscribe((value) => {
+          if (value === undefined) return;
           if (running.get(source.dir) !== entry) return;
           try {
             validateAgentDescription(value);
@@ -342,7 +382,7 @@ export function createPluginProcessHost(
         return {
           ok: true,
           text: await entry.process.invoke(
-            (service, context) => service.command(command.name, args, cwd, context),
+            (service, ctx) => service.command({ name: command.name, args, cwd }, ctx),
             BACKGROUND_CONTEXT,
           ),
         };

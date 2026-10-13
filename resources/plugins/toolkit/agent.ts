@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { defineFacet, defineService } from "@earendil-works/chord";
+import { cell, defineFacet } from "@earendil-works/chord";
+// 宿主随包分发的插件 API（子进程用 resolve hook 把 `oint:plugin` 指向它）。
+// 新格式为源码直载：本文件就是入口，不需要任何构建步骤（Node 类型剥离执行，
+// 因此只允许可擦除的 TS 语法；相对导入必须写全扩展名）。
+import { PluginAgent, pluginAgentDescriptionSchema } from "oint:plugin";
 
 /** 支持的哈希算法。**白名单而不是透传** —— 透传的话模型可以传 `md5-sha1` 之类 */
 const HASH_ALGORITHMS = ["sha256", "sha512", "sha1", "md5"];
@@ -7,8 +11,7 @@ const HASH_ALGORITHMS = ["sha256", "sha512", "sha1", "md5"];
 /**
  * 每个工具的声明。
  *
- * 三条来自宿主契约、写错了就会有可读错误的约束：
- *  - `v: 1` 必须对（版本不匹配直接拒绝启动）；
+ * 两条来自宿主契约、写错了就会有可读错误的约束：
  *  - `parameters.type` 必须是 `"object"`（顶层不是对象的 schema 模型没法填）；
  *  - `description` 是写给**模型**看的，不是写给人看的 —— 它决定模型什么时候会想起这个工具。
  */
@@ -160,26 +163,47 @@ function runTime(args) {
 
 const HANDLERS = { hash: runHash, encode: runEncode, uuid: runUuid, time: runTime };
 
+/** 声明里的 replay 档位：只读工具可重放，依赖外部状态的不可。 */
+function replayOf(name) {
+  return ["hash", "encode"].includes(name) ? "safe" : "unsafe";
+}
 
-export default defineFacet({
-  id: "dev.oint.toolkit.agent",
-  setup(env) {
-    const description = env.replicatedState({
-      tools: TOOLS.map((tool) => ({ ...tool, replay: ["hash", "encode"].includes(tool.name) ? "safe" : "unsafe" })),
-      commands: [], sections: [],
-    });
-    env.provide(defineService("oint.plugin.agent"), {
-      description,
-      async execute(name, args, _invocation, context) {
-        context.abortSignal?.throwIfAborted();
-        const handler = HANDLERS[name];
-        if (!handler) throw new Error(`Unknown toolkit tool: ${name}`);
-        const result = handler(args);
-        return { content: [{ type: "text", text: result.error ?? result.text }], isError: result.error !== undefined };
-      },
-      async command() { throw new Error("Toolkit has no commands"); },
-      async beforeTool() { return {}; },
-      async afterTool(_call, result) { return result; },
-    });
-  },
+export default defineFacet((host) => {
+  host.serve(
+    PluginAgent,
+    (_input, _principal, self) => {
+      const state = self.state({
+        description: cell(pluginAgentDescriptionSchema, {
+          tools: TOOLS.map((tool) => ({ ...tool, replay: replayOf(tool.name) })),
+          commands: [],
+          sections: [],
+        }),
+      });
+      return {
+        kind: "default",
+        description: state.description,
+        async execute({ name, args }, ctx) {
+          // 取消走 Chord 的根上下文：宿主调用被中止时这里会抛，脚本/模型立刻收手。
+          ctx.signal.throwIfAborted();
+          const handler = HANDLERS[name];
+          if (!handler) throw new Error(`Unknown toolkit tool: ${name}`);
+          const result = handler(args);
+          return {
+            output: [{ type: "text", text: result.error ?? result.text }],
+            isError: result.error !== undefined,
+          };
+        },
+        async command() {
+          throw new Error("Toolkit has no commands");
+        },
+        async beforeTool() {
+          return {};
+        },
+        async afterTool({ result }) {
+          return result;
+        },
+      };
+    },
+    { eager: true },
+  );
 });

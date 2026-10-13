@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "给模型的四个小工具：哈希、编码转换、UUID、时间解析。哈希与编码可重放，UUID 与当前时间保留单次执行结果，不联网、不读写文件、不执行命令",
   "license": "MIT",
+  "type": "module",
   "oint": {
     "permissions": [
       "agent.tool.register",
@@ -13,10 +14,9 @@
   "chord": {
     "facets": {
       "agent": "./agent.ts"
-    },
-    "sourceMap": false
+    }
   },
   "peerDependencies": {
-    "@earendil-works/chord": "1.0.0"
+    "@earendil-works/chord": "1.2.0"
   }
 }
