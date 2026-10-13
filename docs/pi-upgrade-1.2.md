@@ -36,12 +36,12 @@
 - 升级后全量：**196 文件通过 / 1 skipped；2553 用例通过 / 8 skipped**（`pi-upgrade-1.2-tests-*.log`）。
 - `npm run typecheck` 全绿；`check:i18n` 751 词条两侧对齐。
 - `npm run probe:kernel` 5/5（含新的 chord host 往返检查）；`npm run probe:plugins` 通过（真实 utilityProcess → 新链路 → 源码直载 toolkit → 4 工具 + hash 校验 + 进程退出）；打包探针见下。
-- 新增/改写的测试：插件链路（内存端口握手/取消传播/retire/断开）、tool_search 装载与消费、codemode 沙箱内调用 `read`、durationMs 透传、compactionFailure 投影。
+- 新增/改写的测试：插件链路（内存端口握手/取消传播/retire/断开）、tool_search 装载与消费、codemode 沙箱内调用 `read`、**codemode 嵌套调用走审批（本体与嵌套各一次，写操作真落盘）**、durationMs 透传、compactionFailure 投影。
 
 ## 已知限制与后续
 
-- **lint 红灯是既有状态**：仓库的 CRLF 行尾与 organizeImports 漂移在升级前就存在（未触碰文件同样报错），本次只保证触碰过的文件干净；全仓 lint 修复建议单列一次机械提交。
+- **lint 已清零**：升级收尾追加一次机械修复提交 —— 新增 `.gitattributes`（`* text=auto eol=lf`，与 Biome 的 LF 口径一致，Windows 检出不再变 CRLF）+ 全仓 biome 格式/import 修复 + 测试文件豁免 `style/noNonNullAssertion`（`foo!` 是测试的「必须存在」断言，改成可选链只会让断言静默通过）；生产代码里的 `!` 改成了显式守卫。`npm run lint` 现为 **0 errors / 0 warnings**。
 - **发布产物**：打包探针（`npm run probe:packaged` / `probe:plugins --packaged`）在 `npm run pack` 后运行，覆盖 asar 内 worker/plugin-api、wasm 资源与 unpacked 插件源码。
-- **codemode 的嵌套审批 UX**：脚本里的嵌套调用会各自弹审批卡（脚本暂停等待）；手动验收提示词已加入对应检查项。
+- **codemode 的嵌套审批**：脚本里的嵌套调用各自走审批链（已由自动化测试钉住：本体 + 嵌套 `write` 各一张卡、放行后真实落盘）；手动验收提示词仍保留对应的界面检查项。
 - **tool_search 的 defer 集合**：v1 只延迟 MCP 聚合工具；浏览器/插件工具保持常驻，后续可按同一机制扩展。
 - 插件描述状态的异步更新：需要在 Chord 根内写入且 principal 与记录一致（在方法里用 ctx 写入最自然），已写入作者文档。

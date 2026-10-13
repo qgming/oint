@@ -1134,6 +1134,27 @@ describe("native durable chat runtime", () => {
     expect(String(part?.result)).toContain("hello-code");
   }, 60_000);
 
+  it("codemode：脚本里的嵌套调用照走审批卡（本体与 write 各一次，写操作真落盘）", async () => {
+    settings.permissionMode = "default";
+    const target = path.join(directory, "nested-write.txt");
+    faux.setResponses([
+      acknowledgeInput(),
+      toolResponse(
+        fauxToolCall(CODEMODE_TOOL_NAME, {
+          code: `await tools.write({ path: ${JSON.stringify(target)}, content: "nested" }); text("wrote");`,
+        }),
+      ),
+      fauxAssistantMessage("done"),
+    ]);
+    await runtime.send(sessionId, "script a write");
+    // codemode 本体（未知工具 → high）与脚本里的 write（high）都应弹过审批卡
+    const requested = vi.mocked(approvals.request).mock.calls.map(([request]) => request.toolName);
+    expect(requested).toContain(CODEMODE_TOOL_NAME);
+    expect(requested).toContain("write");
+    // 审批放行后，嵌套调用真的执行：文件落盘
+    expect(await readFile(target, "utf8")).toBe("nested");
+  }, 60_000);
+
   it("persists messages, authoritative entry links and system instructions", async () => {
     let request: TranscriptContext | undefined;
     faux.setResponses([
