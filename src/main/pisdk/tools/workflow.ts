@@ -72,7 +72,7 @@ const readSchema = Type.Object({});
 type Api = Parameters<ToolRegistration["execute"]>[1];
 type ToolContext = Parameters<ToolRegistration["execute"]>[2];
 const result = (text: string, error = false) => ({
-  content: [{ type: "text" as const, text }],
+  output: [{ type: "text" as const, text }],
   ...(error ? { isError: true } : {}),
 });
 

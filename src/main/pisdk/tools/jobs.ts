@@ -217,12 +217,12 @@ export function createJobTools(deps: JobToolDeps): ToolRegistration[] {
         // 起不来是**可以继续的事实**：把原因写进内容让模型换个做法，而不是让整轮运行失败
         const detail = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text", text: `Error: could not start the background job: ${detail}` }],
+          output: [{ type: "text", text: `Error: could not start the background job: ${detail}` }],
           details: { job: placeholderJob(sessionId, "job-0", params.command, cwd) },
         };
       }
       return {
-        content: [
+        output: [
           {
             type: "text",
             text:
@@ -258,7 +258,7 @@ export function createJobTools(deps: JobToolDeps): ToolRegistration[] {
         if (context.abortSignal?.aborted) throw error;
         const detail = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text", text: `Error: ${detail}` }],
+          output: [{ type: "text", text: `Error: ${detail}` }],
           details: { job: placeholderJob(sessionId, params.id, "", "") },
         };
       }
@@ -273,7 +273,7 @@ export function createJobTools(deps: JobToolDeps): ToolRegistration[] {
             ? "(no new output yet)"
             : "(no new output; the job has exited)";
       return {
-        content: [{ type: "text", text: `${header}\n${body}` }],
+        output: [{ type: "text", text: `${header}\n${body}` }],
         details: { job },
       };
     },
@@ -290,7 +290,7 @@ export function createJobTools(deps: JobToolDeps): ToolRegistration[] {
         all.length === 0
           ? "No background jobs in this session."
           : `${all.length} background job(s):\n${all.map(summarize).join("\n")}`;
-      return { content: [{ type: "text", text }], details: { jobs: all } };
+      return { output: [{ type: "text", text }], details: { jobs: all } };
     },
   };
 
@@ -307,12 +307,12 @@ export function createJobTools(deps: JobToolDeps): ToolRegistration[] {
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text", text: `Error: ${detail}` }],
+          output: [{ type: "text", text: `Error: ${detail}` }],
           details: { job: placeholderJob(sessionId, params.id, "", "") },
         };
       }
       return {
-        content: [
+        output: [
           {
             type: "text",
             text:

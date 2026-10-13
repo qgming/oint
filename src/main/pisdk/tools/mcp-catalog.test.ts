@@ -29,7 +29,7 @@ function server(overrides: Partial<McpCatalogServer> = {}): McpCatalogServer {
 
 /** 只取测试要断言的两项：文本与 details（details 用宽松记录类型即可） */
 type LooseResult = {
-  content: { type: string; text?: string }[];
+  output: { type: string; text?: string }[];
   details?: Record<string, unknown>;
 };
 
@@ -45,8 +45,8 @@ function makeTool(servers: McpCatalogServer[]) {
   };
 }
 
-function textOf(result: { content: { type: string; text?: string }[] }): string {
-  return result.content.map((item) => item.text ?? "").join("\n");
+function textOf(result: { output: { type: string; text?: string }[] }): string {
+  return result.output.map((item) => item.text ?? "").join("\n");
 }
 
 describe("createMcpCatalogTool", () => {

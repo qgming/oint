@@ -179,7 +179,7 @@ type LooseTool = {
   execute: (
     id: string,
     params: unknown,
-  ) => Promise<{ content: { type: string; text?: string }[]; details?: Record<string, unknown> }>;
+  ) => Promise<{ output: { type: string; text?: string }[]; details?: Record<string, unknown> }>;
 };
 
 function looseTool(tools: ToolRegistration[], name: string): LooseTool {

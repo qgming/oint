@@ -266,7 +266,7 @@ async function callText(
   const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`缺少工具 ${name}`);
   const result = await tool.execute(args, createToolTestApi({ callId: "t1" }), BACKGROUND_CONTEXT);
-  const part = (result.content ?? [])[0];
+  const part = (result.output ?? [])[0];
   if (part === undefined || part.type !== "text") throw new Error(`${name} 没有返回文本`);
   return part.text;
 }
@@ -281,21 +281,21 @@ async function call(
 }
 
 /**
- * 调用一个工具并取回**完整结果**（content 各块 + details）。
+ * 调用一个工具并取回**完整结果**（output 各块 + details）。
  *
  * `callText` 只回第一块文本，够不着两件事：图片块（截图工具会同时回文本与 image），
  * 以及 details。断言「模型看得见什么」与「渲染层拿得到什么」时必须区分这两处 ——
- * 截图的全白告警就是因为只进了 content 而曾经整个丢掉。
+ * 截图的全白告警就是因为只进了 output 而曾经整个丢掉。
  */
 async function callResult<TDetails = unknown>(
   tools: ToolRegistration[],
   name: string,
   args: Record<string, unknown> = {},
-): Promise<{ content: { type: string; text?: string }[]; details: TDetails }> {
+): Promise<{ output: { type: string; text?: string }[]; details: TDetails }> {
   const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`缺少工具 ${name}`);
   return (await tool.execute(args, createToolTestApi({ callId: "t1" }), BACKGROUND_CONTEXT)) as {
-    content: { type: string; text?: string }[];
+    output: { type: string; text?: string }[];
     details: TDetails;
   };
 }
@@ -551,8 +551,8 @@ describe("浏览器工具", () => {
       {},
     );
 
-    // 模型只看得到 content（details 是给渲染层的），所以告警必须出现在文本里
-    const text = result.content
+    // 模型只看得到 output（details 是给渲染层的），所以告警必须出现在文本里
+    const text = result.output
       .filter((block) => block.type === "text")
       .map((block) => block.text ?? "")
       .join("");
@@ -562,7 +562,7 @@ describe("浏览器工具", () => {
     expect(result.details?.warning).toContain("The viewport looks blank");
 
     // 图片本身照常返回（告警是非致命的，不是错误）
-    expect((result.content ?? []).some((block) => block.type === "image")).toBe(true);
+    expect((result.output ?? []).some((block) => block.type === "image")).toBe(true);
   });
 
   it("没有 warning 时不加噪声行", async () => {
@@ -570,7 +570,7 @@ describe("浏览器工具", () => {
     const tools = createBrowserTools(automation);
 
     const result = await callResult<{ warning?: string }>(tools, "browser_screenshot", {});
-    const text = result.content
+    const text = result.output
       .filter((block) => block.type === "text")
       .map((block) => block.text ?? "")
       .join("");

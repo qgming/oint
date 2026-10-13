@@ -347,7 +347,7 @@ export function normalizeWhitelist(
 /** 失败回执：文本给模型，isError 给渲染层与测试（内核只把工具抛错当错误，见文件头注释） */
 function errorResult<TDetails extends object>(details: TDetails, text: string) {
   return {
-    content: [{ type: "text" as const, text: `Error: ${text}` }],
+    output: [{ type: "text" as const, text: `Error: ${text}` }],
     details,
     isError: true as const,
   };
@@ -593,7 +593,7 @@ export function createSubagentTools(deps: SubagentToolDeps): ToolRegistration[] 
           ? ""
           : `它接续的是 ${resumed.delegationId}（那一条按历史保留，状态不会被它改写）。`;
       return {
-        content: [
+        output: [
           {
             type: "text",
             text:
@@ -630,7 +630,7 @@ export function createSubagentTools(deps: SubagentToolDeps): ToolRegistration[] 
       );
       if (runs.length === 0) {
         return {
-          content: [
+          output: [
             {
               type: "text",
               text:
@@ -645,7 +645,7 @@ export function createSubagentTools(deps: SubagentToolDeps): ToolRegistration[] 
       }
       const now = Date.now();
       return {
-        content: runs.map((run) => ({ type: "text" as const, text: describeRun(run, now) })),
+        output: runs.map((run) => ({ type: "text" as const, text: describeRun(run, now) })),
         details: { runs },
       };
     },
@@ -665,7 +665,7 @@ export function createSubagentTools(deps: SubagentToolDeps): ToolRegistration[] 
         runs.length === 0
           ? "本会话还没有子智能体运行。"
           : `子智能体运行（${runs.length} 个）：\n${runs.map((run) => summarizeRun(run, now)).join("\n")}`;
-      return { content: [{ type: "text", text }], details: { runs } };
+      return { output: [{ type: "text", text }], details: { runs } };
     },
   };
 
@@ -688,7 +688,7 @@ export function createSubagentTools(deps: SubagentToolDeps): ToolRegistration[] 
           `- 没有找到这些运行：${missing.join("、")}（用 ${SUBAGENT_TOOL_NAMES.list} 看当前有哪些）。`,
         );
       }
-      return { content: [{ type: "text", text: lines.join("\n") }], details: { runs: stopped } };
+      return { output: [{ type: "text", text: lines.join("\n") }], details: { runs: stopped } };
     },
   };
 

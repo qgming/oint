@@ -197,7 +197,7 @@ describe("committed native conversation projection", () => {
       description: "execute once",
       execute: async () => {
         toolCalls++;
-        return { content: [{ type: "text", text: "saved" }] };
+        return { output: [{ type: "text", text: "saved" }] };
       },
     });
     const f = await fixture([tool], { ...MODEL_RETRY_POLICY, baseDelayMs: 1 });
@@ -319,7 +319,7 @@ describe("committed native conversation projection", () => {
           name: "once",
           parameters: Type.Object({}),
           description: "execute once",
-          execute: async () => ({ content: [{ type: "text", text: "saved" }] }),
+          execute: async () => ({ output: [{ type: "text", text: "saved" }] }),
         }),
       ],
       { ...MODEL_RETRY_POLICY, baseDelayMs: 1 },
@@ -400,7 +400,7 @@ describe("committed native conversation projection", () => {
         await api.details({ stage: "waiting" }, context);
         entered = true;
         await gate;
-        return { content: [{ type: "text", text: "finished" }], details: { stage: "done" } };
+        return { output: [{ type: "text", text: "finished" }], details: { stage: "done" } };
       },
     });
     const f = await fixture([tool]);
@@ -488,7 +488,7 @@ describe("committed native conversation projection", () => {
       name: "Task",
       description: "delegate",
       parameters: Type.Object({}),
-      execute: async () => ({ content: [{ type: "text", text: "started" }] }),
+      execute: async () => ({ output: [{ type: "text", text: "started" }] }),
     });
     const f = await fixture([tool]);
     f.provider.setResponses([

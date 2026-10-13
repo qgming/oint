@@ -79,10 +79,10 @@ function count(amount: number, singular: string, plural = `${singular}s`): strin
   return `${amount} ${amount === 1 ? singular : plural}`;
 }
 
-/** 统一出口：content 是给模型看的文本，details 随结果一起留档 */
+/** 统一出口：output 是给模型看的文本，details 随结果一起留档 */
 function textResult<TDetails>(text: string, details: TDetails) {
   return {
-    content: [{ type: "text" as const, text }],
+    output: [{ type: "text" as const, text }],
     details,
     isError: text.startsWith("Error:"),
   };

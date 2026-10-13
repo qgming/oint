@@ -77,10 +77,10 @@ afterAll(async () => {
 });
 
 describe("read_image 的输出契约", () => {
-  it("图片本体进 content（模型必须真正看到图）", async () => {
+  it("图片本体进 output（模型必须真正看到图）", async () => {
     const result = await runReadImage("shot.png");
 
-    const image = (result.content ?? []).find((block) => block.type === "image");
+    const image = (result.output ?? []).find((block) => block.type === "image");
     expect(image).toBeDefined();
     // image 块是 base64 的字节本体，不是路径
     expect(image?.type === "image" ? image.mimeType : "").toBe("image/png");
@@ -107,7 +107,7 @@ describe("read_image 的输出契约", () => {
 
   it("给模型的信封带路径 / 类型 / 尺寸 / 体积（DSH 同款形状）", async () => {
     const result = await runReadImage("shot.png");
-    const text = (result.content ?? [])
+    const text = (result.output ?? [])
       .filter((block) => block.type === "text")
       .map((block) => (block.type === "text" ? block.text : ""))
       .join("\n");

@@ -66,9 +66,9 @@ function runGlob(
   );
 }
 
-/** content 里的文本（两个工具都只回文本） */
+/** output 里的文本（两个工具都只回文本） */
 function textOf(outcome: GrepOutcome | GlobOutcome): string {
-  return (outcome.content ?? [])
+  return (outcome.output ?? [])
     .map((block) => (block.type === "text" ? block.text : ""))
     .join("\n");
 }

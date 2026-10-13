@@ -451,7 +451,7 @@ describe("native durable chat runtime", () => {
   it("read-only work blocks writes and unknown MCP tools even with full permission, and skips plugin hooks", async () => {
     settings.permissionMode = "full";
     const execute = vi.fn(async () => ({
-      content: [{ type: "text" as const, text: "unexpected" }],
+      output: [{ type: "text" as const, text: "unexpected" }],
     }));
     mcpTools = [
       defineTool({
@@ -1057,7 +1057,7 @@ describe("native durable chat runtime", () => {
         name: "mcp__late__write",
         description: "late",
         parameters: Type.Object({}),
-        execute: async () => ({ content: [] }),
+        execute: async () => ({ output: [] }),
       }),
     ];
     for (const notify of mcpListeners) notify();
@@ -1126,7 +1126,7 @@ describe("native durable chat runtime", () => {
 
   it("runs plugin then host permission hooks and preserves tool result details", async () => {
     const execute = vi.fn(async () => ({
-      content: [{ type: "text" as const, text: "tool value" }],
+      output: [{ type: "text" as const, text: "tool value" }],
       details: { source: "native" },
     }));
     mcpTools = [
@@ -1166,7 +1166,7 @@ describe("native durable chat runtime", () => {
 
   it("a plugin block never executes the tool or requests host approval", async () => {
     const execute = vi.fn(async () => ({
-      content: [{ type: "text" as const, text: "should not run" }],
+      output: [{ type: "text" as const, text: "should not run" }],
     }));
     mcpTools = [
       defineTool({
@@ -1201,7 +1201,7 @@ describe("native durable chat runtime", () => {
         name: "mcp__test__call",
         description: "test",
         parameters: Type.Object({}),
-        execute: async () => ({ content: [] }),
+        execute: async () => ({ output: [] }),
       }),
     ];
     pluginHost.dispatch.mockImplementation(async (name) =>
@@ -1241,7 +1241,7 @@ describe("native durable chat runtime", () => {
           entered = true;
           context.abortSignal?.addEventListener("abort", release, { once: true });
           await hold;
-          return { content: [] };
+          return { output: [] };
         },
       }),
     ];
@@ -1325,7 +1325,7 @@ describe("native durable chat runtime", () => {
           entered = true;
           context.abortSignal?.addEventListener("abort", release, { once: true });
           await hold;
-          return { content: [] };
+          return { output: [] };
         },
       }),
     ];
@@ -1393,7 +1393,7 @@ describe("native durable chat runtime", () => {
               { once: true },
             );
           });
-          return { content: [] };
+          return { output: [] };
         },
       }),
     ];
@@ -1431,7 +1431,7 @@ describe("native durable chat runtime", () => {
           await new Promise<void>((resolve) =>
             context.abortSignal?.addEventListener("abort", () => resolve(), { once: true }),
           );
-          return { content: [] };
+          return { output: [] };
         },
       }),
     ];
@@ -1540,7 +1540,7 @@ describe("native durable chat runtime", () => {
         name: "mcp__new__call",
         description: "new",
         parameters: Type.Object({}),
-        execute: async () => ({ content: [] }),
+        execute: async () => ({ output: [] }),
       }),
     ];
     for (const notify of mcpListeners) notify();
@@ -1660,7 +1660,7 @@ describe("native durable chat runtime", () => {
           await new Promise<void>((resolve) => {
             release = resolve;
           });
-          return { content: [] };
+          return { output: [] };
         },
       }),
     ];
@@ -1685,7 +1685,7 @@ describe("native durable chat runtime", () => {
         name: "mcp__added__call",
         description: "added",
         parameters: Type.Object({}),
-        execute: async () => ({ content: [] }),
+        execute: async () => ({ output: [] }),
       }),
     ];
     for (const notify of mcpListeners) notify();

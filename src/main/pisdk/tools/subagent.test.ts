@@ -141,7 +141,7 @@ async function invoke(
 
 /** 回执的文本部分：可能是一段或多段，测试统一拼起来看 */
 function resultText(result: SubagentToolResult): string {
-  return (result.content ?? []).map((part) => (part.type === "text" ? part.text : "")).join("\n");
+  return (result.output ?? []).map((part) => (part.type === "text" ? part.text : "")).join("\n");
 }
 
 /** 取第一次 start 的请求；没调用过直接抛错，避免断言拿到 undefined */

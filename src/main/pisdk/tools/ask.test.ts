@@ -55,7 +55,7 @@ function runAsk(
 }
 
 function textOf(outcome: AskToolResult): string {
-  return (outcome.content ?? [])
+  return (outcome.output ?? [])
     .map((block) => (block.type === "text" ? block.text : ""))
     .join("\n");
 }

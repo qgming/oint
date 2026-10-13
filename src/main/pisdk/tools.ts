@@ -66,7 +66,8 @@ export interface BuildToolsOptions {
 } as const;
 const BASH_DESCRIPTION =
   "在当前工作目录执行一条 shell 命令，返回合并后的 stdout 与 stderr；超长输出只保留末尾 2000 行 / 50KB。\n" +
-  "结果末尾总会带一行 [exited with code N]：命令成没成看它，**不需要**再跑一条 echo $?。\n\n" +
+  "非零退出会把整条调用标记为错误，并附一条 exit_code 诊断（Command exited with code N）：命令成没成看它，" +
+  "**不需要**再跑一条 echo $?。\n\n" +
   "什么时候用：跑测试与构建、装依赖、看 git 状态（git status / git diff / git log）、执行项目脚本。\n" +
   "什么时候不要用：找文件用 glob，搜内容用 grep，读写文件用 read/write/edit —— 不要用 cat/sed/echo 去读改文件，" +
   "也不要在命令里拼 grep/find/rg，那些二进制在每台机器上不一定存在，遇到带空格的路径还会因为引号出错。";
@@ -77,7 +78,7 @@ const READ_DESCRIPTION =
   "什么时候用：**修改任何文件之前先读它**；需要看完整实现或其上下文时。\n" +
   "什么时候不要用：只想定位某个符号或字符串在哪 → 用 grep；文件很大而只需要片段 → 先用 grep 拿到行号，" +
   "再带 offset/limit 读那一段；只是想确认文件存在或看目录结构 → 用 glob。\n" +
-  "**要看的是一张图片（png/jpg/webp/gif）时用 read_image**：read 只读取文本；read_image 有 16 MiB 守卫并返回尺寸。" +
+  "png/jpg/webp/gif 会以图片块直接返回（受模型的图片尺寸与体积上限约束）；需要尺寸与元数据时用 read_image（16 MiB 守卫）。" +
   "SVG 不是图片而是文本，仍用 read。";
 
 const WRITE_DESCRIPTION =
@@ -93,38 +94,6 @@ const EDIT_DESCRIPTION =
   "什么时候用：定点修改 —— 改一个函数、一行配置、一个字符串。一次调用可以带多个 edits 批量改同一个文件。\n" +
   "什么时候不要用：不确定文件当前内容时（先 read）；需要跨多个文件大范围重构时逐个文件改。" +
   "oldText 里不要包含大段未改动的上下文 —— 只保留足以唯一定位的少量行，否则文件一动就会失配。";
-
-/** Native bash streams output through api.output; keep the app's explicit exit marker. */
-function withBashExitCode(
-  tool: ReturnType<typeof createBashTool>,
-): ReturnType<typeof createBashTool> {
-  return {
-    ...tool,
-    async execute(params, api, context) {
-      let ending = "";
-      const streamingApi = {
-        ...api,
-        output(chunk: string | Uint8Array) {
-          const text = typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
-          ending = (ending + text).slice(-2);
-          api.output(chunk);
-        },
-      };
-      try {
-        const result = await tool.execute(params, streamingApi, context);
-        api.output(
-          `${ending.endsWith("\n\n") ? "" : ending.endsWith("\n") ? "\n" : "\n\n"}[exited with code 0]`,
-        );
-        return result;
-      } catch (error) {
-        const match =
-          error instanceof Error ? /^Command exited with code (-?\d+)$/.exec(error.message) : null;
-        if (match === null) throw error;
-        throw new Error(`[exited with code ${match[1]}]`, { cause: error });
-      }
-    },
-  };
-}
 
 /**
  * 构建本应用暴露给 Agent 的完整工具集。
@@ -175,7 +144,7 @@ export function buildTools(
 ): ToolRegistration[] {
   return [
     {
-      ...withBashExitCode(createBashTool()),
+      ...createBashTool(),
       description: BASH_DESCRIPTION,
     },
     { ...createReadToolWithLineNumbers(), description: READ_DESCRIPTION },

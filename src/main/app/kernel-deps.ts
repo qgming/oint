@@ -16,9 +16,6 @@ export const KERNEL_PACKAGES = [
   "@earendil-works/pi-ai",
   "@earendil-works/pi-mcp",
   "@earendil-works/chord",
-  "@earendil-works/pi-client",
-  "@earendil-works/pi-server",
-  "@earendil-works/pi-protocol",
 ] as const;
 
 /** 文件读取注入点（默认 node:fs/promises 的 readFile） */

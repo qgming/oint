@@ -164,7 +164,7 @@ export function createMcpCatalogTool(source: McpCatalogSource): ToolRegistration
       const servers = source.catalog();
 
       const fail = (text: string): ToolExecutionResult<McpCatalogDetails> => ({
-        content: [{ type: "text", text: `Error: ${text}` }],
+        output: [{ type: "text", text: `Error: ${text}` }],
         details: { level: "error", count: 0 },
         isError: true,
       });
@@ -178,7 +178,7 @@ export function createMcpCatalogTool(source: McpCatalogSource): ToolRegistration
         );
         const clipped = truncateForModel(renderServers(listed));
         return {
-          content: [{ type: "text", text: clipped.text }],
+          output: [{ type: "text", text: clipped.text }],
           details: { level: "servers", count: listed.length },
         };
       }
@@ -193,7 +193,7 @@ export function createMcpCatalogTool(source: McpCatalogSource): ToolRegistration
       if (toolName === "") {
         const clipped = truncateForModel(renderTools(server));
         return {
-          content: [{ type: "text", text: clipped.text }],
+          output: [{ type: "text", text: clipped.text }],
           details: { level: "tools", serverId, count: server.tools.length },
         };
       }
@@ -206,7 +206,7 @@ export function createMcpCatalogTool(source: McpCatalogSource): ToolRegistration
       }
       const clipped = truncateForModel(renderTool(server, tool));
       return {
-        content: [{ type: "text", text: clipped.text }],
+        output: [{ type: "text", text: clipped.text }],
         details: { level: "tool", serverId, toolName, count: 1 },
       };
     },

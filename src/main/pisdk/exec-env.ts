@@ -5,7 +5,12 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type ExecutionEnv, err, FileError } from "@earendil-works/pi-durable/env";
+import {
+  type ExecutionEnv,
+  err,
+  FileError,
+  type WatchTarget,
+} from "@earendil-works/pi-durable/env";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { buildChildEnv } from "@/main/security/child-env";
 import { isInsidePath, normalizePath, resolveRealPath } from "@/main/security/path-guard";
@@ -265,6 +270,30 @@ export async function createExecEnv(options: CreateExecEnvOptions): Promise<Exec
       const check = await guard(requested);
       if (!check.ok) return err<never, FileError>(check.error);
       return inner.listDir(check.path, context);
+    },
+
+    async openBinaryReader(requested, options, context) {
+      const check = await guard(requested);
+      if (!check.ok) return err<never, FileError>(check.error);
+      return inner.openBinaryReader(check.path, options, context);
+    },
+
+    async openDirReader(requested, context) {
+      const check = await guard(requested);
+      if (!check.ok) return err<never, FileError>(check.error);
+      return inner.openDirReader(check.path, context);
+    },
+
+    async watch(targets, onChange, context) {
+      // 每个被监视的目标都先过允许根：watcher 的目标可能尚不存在（创建它算一次变化），
+      // guard 对不存在的路径会退到最近的存在祖先，语义与其它文件方法一致。
+      const guarded: WatchTarget[] = [];
+      for (const target of targets) {
+        const check = await guard(target.path);
+        if (!check.ok) return err<never, FileError>(check.error);
+        guarded.push({ ...target, path: check.path });
+      }
+      return inner.watch(guarded, onChange, context);
     },
 
     async canonicalPath(requested, context) {

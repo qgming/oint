@@ -182,7 +182,7 @@ export function createTodoTool(): ToolRegistration<
       }, context);
       if (empty)
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `Error: every todo needs a non-empty "text". The list was not changed (revision stays ${state.revision}).`,
@@ -196,7 +196,7 @@ export function createTodoTool(): ToolRegistration<
           ? `Todo list cleared (revision ${state.revision}).`
           : `Todo list updated (revision ${state.revision}):`;
       return {
-        content: [{ type: "text", text: `${header}\n${summarize(state.todos)}` }],
+        output: [{ type: "text", text: `${header}\n${summarize(state.todos)}` }],
         details: state,
       };
     },

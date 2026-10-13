@@ -1,7 +1,9 @@
 import { createToolTestApi } from "@/main/pisdk/tools/tool-test-api";
-// bash 结果的退出码与 spill 契约：装配在 tools.ts 里的包装必须让每条结果都带 [exited with code N]，
-// 且不改变内核原有的行为 —— stderr 仍合并进输出、超时仍抛内核的文案、非零退出仍是错误。
-// 另外钉住「截断后给出的 Full output 路径能被 read 打开」：spill 目录必须在会话环境的允许根里。
+// bash 结果的退出码与 spill 契约（pi-durable 1.2.0 起的内核语义）：
+// - 成功：输出就是合并后的 stdout/stderr，不再附加 [exited with code 0] 标记；
+// - 非零退出：返回**错误结果**（isError=true），输出完整保留，exit_code 诊断给出退出码 —— 模型从诊断里读它；
+// - 超时：依旧抛内核文案（harness 会把抛错转成错误结果），不加工；
+// - spill：完整输出的路径现在来自 full_output 诊断，且该路径必须能被 read 打开（spill 目录在允许根里）。
 //
 // 用真实 shell 跑（与 exec-env.test.ts 同一个姿态）：没有可用 shell 的环境直接跳过断言。
 
@@ -17,9 +19,11 @@ import { buildTools } from "../tools";
 let root: string;
 let env: ExecutionEnv;
 
-type BashOutcome = { ok: true; text: string } | { ok: false; error: Error };
+type BashOutcome =
+  | { ok: true; text: string; isError: boolean; diagnostics: string[] }
+  | { ok: false; error: Error };
 
-/** 走装配后的 bash 工具（包装在 tools.ts），异常也收进返回值里方便断言 */
+/** 走装配后的 bash 工具，异常也收进返回值里方便断言 */
 async function runBash(command: string, timeout?: number): Promise<BashOutcome> {
   const tool = buildTools().find((candidate) => candidate.name === "bash");
   if (tool === undefined) throw new Error("缺少 bash 工具");
@@ -38,10 +42,16 @@ async function runBash(command: string, timeout?: number): Promise<BashOutcome> 
       }),
       BACKGROUND_CONTEXT,
     );
+    // 1.2.0：output 通常省略（流式输出就是内容）；给出时优先它。诊断 = api 诊断 + 结果诊断。
     const text =
-      result.content?.map((block) => (block.type === "text" ? block.text : "")).join("\n") ??
+      result.output?.map((block) => (block.type === "text" ? block.text : "")).join("\n") ??
       output;
-    return { ok: true, text: [text, ...diagnostics].join("\n") };
+    return {
+      ok: true,
+      text,
+      isError: result.isError === true,
+      diagnostics: [...diagnostics, ...(result.diagnostics ?? []).map((item) => item.message)],
+    };
   } catch (error) {
     const caught = error instanceof Error ? error : new Error(String(error));
     return {
@@ -73,21 +83,24 @@ afterAll(async () => {
 });
 
 describe("bash 退出码", () => {
-  it("成功时结果以 [exited with code 0] 收尾", async () => {
+  it("成功：输出就是命令输出本身，不再附加退出码标记", async () => {
     const outcome = await runBash("echo hello");
     if (skipIfNoShell(outcome)) return;
     if (!outcome.ok) throw outcome.error;
 
-    expect(outcome.text).toBe("hello\n\n[exited with code 0]");
+    expect(outcome.isError).toBe(false);
+    expect(outcome.text).toBe("hello\n");
+    expect(outcome.diagnostics.join("\n")).not.toContain("exited with code");
   });
 
-  it("非零退出：stderr 仍合并进输出，错误文本同样以 [exited with code 3] 收尾", async () => {
+  it("非零退出：stderr 合并进输出，结果标记为错误并带 exit_code 诊断", async () => {
     const outcome = await runBash("echo boom 1>&2; exit 3");
     if (skipIfNoShell(outcome)) return;
-    if (outcome.ok) throw new Error(`应当失败，却得到：${outcome.text}`);
+    if (!outcome.ok) throw outcome.error;
 
-    // 结果从「异常」变成「带退出码的异常」：isError 语义不变，模型能从文本里直接读到退出码
-    expect(outcome.error.message).toBe("boom\n\n[exited with code 3]");
+    expect(outcome.isError).toBe(true);
+    expect(outcome.text).toBe("boom\n");
+    expect(outcome.diagnostics.join("\n")).toContain("Command exited with code 3");
   });
 
   /**
@@ -115,8 +128,9 @@ describe("超长输出的 spill 文件", () => {
     if (skipIfNoShell(outcome)) return;
     if (!outcome.ok) throw outcome.error;
 
-    // 路径在 "[Showing lines … . Full output: <path>]" 里；退出码行接在这个尾注之后，所以不锚定行尾
-    const spillPath = /Full output: ([^\]\n]+)/.exec(outcome.text)?.[1];
+    // 路径在 full_output 诊断里（1.2.0 起是诊断而不是正文尾注）
+    const spilled = [outcome.text, ...outcome.diagnostics].join("\n");
+    const spillPath = /Full output: ([^\]\n]+)/.exec(spilled)?.[1];
     expect(spillPath).toBeTruthy();
     if (spillPath === undefined) return;
     try {
@@ -127,7 +141,7 @@ describe("超长输出的 spill 文件", () => {
         createToolTestApi({ env, callId: "call-read" }),
         BACKGROUND_CONTEXT,
       );
-      const text = (readResult.content ?? [])
+      const text = (readResult.output ?? [])
         .map((block) => (block.type === "text" ? block.text : ""))
         .join("\n");
       // spill 在系统临时目录下：曾经的允许根只有工作目录与数据目录，read 会直接拒绝这条路径

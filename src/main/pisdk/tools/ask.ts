@@ -150,7 +150,7 @@ export function createAskTool(
       // schema 已限定 1~4 题，这里再兜一层：内核换了校验口径时也不能把空提问丢给用户
       if (questions.length < 1 || questions.length > MAX_QUESTIONS) {
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `Error: ask_user 需要 1~${MAX_QUESTIONS} 道题（收到 ${questions.length} 道），本次未提问。`,
@@ -174,12 +174,12 @@ export function createAskTool(
       };
 
       if (response.outcome === "answered") {
-        return { content: [{ type: "text", text: formatAnswers(questions, response) }], details };
+        return { output: [{ type: "text", text: formatAnswers(questions, response) }], details };
       }
       if (response.outcome === "unanswered") {
         const seconds = Math.round(deps.interactions.timeoutMs() / 1000);
         return {
-          content: [
+          output: [
             {
               type: "text",
               text:
@@ -191,7 +191,7 @@ export function createAskTool(
         };
       }
       return {
-        content: [{ type: "text", text: "本轮运行已停止，未获得用户回答。" }],
+        output: [{ type: "text", text: "本轮运行已停止，未获得用户回答。" }],
         details,
       };
     },

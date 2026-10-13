@@ -199,7 +199,7 @@ export function createReadImageTool(): ToolRegistration<
       };
 
       return {
-        content: [
+        output: [
           { type: "text", text: formatImageEnvelope(absolute, image) },
           /**
            * 图片本体以 image 内容块返回 —— 模型必须**真正看到**这张图，这是本工具的全部意义。

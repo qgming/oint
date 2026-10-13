@@ -955,7 +955,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
         // open 会把目标设成「工作标签」，这里问一次它的身份，好让后续调用能指名道姓
         const tabId = automation.tab().tabId;
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `${tabLine(automation, tabId)}\n${formatPageState("Opened", state)}`,
@@ -988,7 +988,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
         async (ops) => {
           const state = await ops.history(params.action);
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: `${tabLine(automation, ops.tabId)}\n${formatPageState(params.action, state)}`,
@@ -1015,7 +1015,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
         async (ops) => {
           const result = await ops.snapshot();
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: `${tabLine(automation, ops.tabId)}\n${formatSnapshot(result)}`,
@@ -1072,7 +1072,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                 ? "The page navigated; snapshot again to see the new content."
                 : "The page did not navigate; snapshot again to see what changed.";
               const text = withActionNotes(`Clicked ${target}. ${suffix}`, outcome);
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "type": {
               if (params.ref === undefined) throw new Error("type 需要 ref（来自最近一次快照）。");
@@ -1086,7 +1086,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                   : `Typed into ${target}${suffix}. The page did not navigate; snapshot again to confirm the field now holds the text.`,
                 outcome,
               );
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "press": {
               if (params.key === undefined)
@@ -1102,7 +1102,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                   : `Pressed ${outcome.keys}${where}. The page did not navigate; snapshot again to see what changed.`,
                 outcome,
               );
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "hover": {
               const point = pickPoint(params, "hover");
@@ -1128,7 +1128,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                 ? "The page navigated; snapshot again to see the new content."
                 : "The page did not navigate; snapshot again to see what appeared.";
               const text = withActionNotes(`Hovered ${target}. ${suffix}`, outcome);
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "select": {
               if (params.ref === undefined)
@@ -1143,7 +1143,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                 `Selected "${outcome.label}" (value="${outcome.value}") in ${target}. ${suffix}`,
                 outcome,
               );
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "scroll": {
               const deltaY = params.deltaY;
@@ -1155,7 +1155,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                 `Scrolled ${deltaY > 0 ? "down" : "up"} ${Math.abs(deltaY)}px.`,
                 outcome,
               );
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
             case "drag": {
               const start = pickDragPoint(params, "from");
@@ -1170,7 +1170,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
                     : " The page did not navigate; snapshot again (or browser_evaluate) to see whether the drag actually moved anything."),
                 outcome,
               );
-              return { content: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
+              return { output: [{ type: "text", text: `${header}\n${text}` }], details: outcome };
             }
           }
         },
@@ -1193,7 +1193,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
         async (ops) => {
           const result = await ops.wait(options);
           return {
-            content: [
+            output: [
               { type: "text", text: `${tabLine(automation, ops.tabId)}\n${formatWait(result)}` },
             ],
             details: result,
@@ -1217,7 +1217,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
         async (ops) => {
           const shot = await ops.screenshot();
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text:
@@ -1266,7 +1266,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
           if (params.type === "console") {
             const report = await ops.console();
             return {
-              content: [{ type: "text", text: `${header}\n${formatConsole(report)}` }],
+              output: [{ type: "text", text: `${header}\n${formatConsole(report)}` }],
               details: report,
             };
           }
@@ -1276,7 +1276,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
           };
           const report = await ops.network(query);
           return {
-            content: [{ type: "text", text: `${header}\n${formatNetwork(report)}` }],
+            output: [{ type: "text", text: `${header}\n${formatNetwork(report)}` }],
             details: report,
           };
         },
@@ -1306,7 +1306,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
             `${outcome.handledSinceLastRead} dialog(s) were answered since the last time this tool was called. ` +
             "Their content is in the console (browser_logs type console).";
           return {
-            content: [{ type: "text", text: `${tabLine(automation, ops.tabId)}\n${text}` }],
+            output: [{ type: "text", text: `${tabLine(automation, ops.tabId)}\n${text}` }],
             details: outcome,
           };
         },
@@ -1331,7 +1331,7 @@ export function createBrowserTools(automation: BrowserAutomation): ToolRegistrat
           const text = result.ok
             ? `${header}\n${result.value === "" ? "(the code returned nothing)" : result.value}`
             : `${header}\nThe code threw: ${result.error}`;
-          return { content: [{ type: "text", text }], details: result };
+          return { output: [{ type: "text", text }], details: result };
         },
       );
     },

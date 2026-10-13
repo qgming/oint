@@ -74,7 +74,7 @@ async function run(
     createToolTestApi({ callId: "call-1" }),
     BACKGROUND_CONTEXT,
   );
-  const first = (result.content ?? [])[0];
+  const first = (result.output ?? [])[0];
   const text = first !== undefined && first.type === "text" ? first.text : "";
   return { text, details: result.details };
 }

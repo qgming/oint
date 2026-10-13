@@ -1,14 +1,14 @@
 import { createToolTestApi } from "@/main/pisdk/tools/tool-test-api";
 // read 工具的输出契约：tools.ts 的描述承诺「返回带行号的内容」，实现必须真的给出来 ——
 // 曾经的版本照抄内核 read（只回原文），子智能体因此被描述误导（行号对不上它想引用的位置）。
-//
-// 全部在真实临时文件上跑：路径守卫、分页与截断都走内核的真实逻辑，替身会把要验的东西验成空的。
+// 1.2.0 起原生 read 直接返回图片块：这里也钉住这条（含模型解析）。
 
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
+import type { ToolExecutionApi } from "@earendil-works/pi-durable";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createExecEnv } from "../exec-env";
 import { buildTools } from "../tools";
@@ -18,10 +18,17 @@ let root: string;
 let env: ExecutionEnv;
 
 /** 走装配后的 read 工具（而不是单独构造包装）：tools.ts 里接错工具时这里必须变红 */
-async function runRead(params: { path: string; offset?: number; limit?: number }) {
+async function runRead(
+  params: { path: string; offset?: number; limit?: number },
+  overrides: Partial<ToolExecutionApi> = {},
+) {
   const tool = buildTools().find((candidate) => candidate.name === "read");
   if (tool === undefined) throw new Error("缺少 read 工具");
-  return tool.execute(params, createToolTestApi({ env, callId: "call-read" }), BACKGROUND_CONTEXT);
+  return tool.execute(
+    params,
+    createToolTestApi({ env, callId: "call-read", ...overrides }),
+    BACKGROUND_CONTEXT,
+  );
 }
 
 async function readText(params: {
@@ -30,7 +37,7 @@ async function readText(params: {
   limit?: number;
 }): Promise<string> {
   const result = await runRead(params);
-  return (result.content ?? [])
+  return (result.output ?? [])
     .map((block) => (block.type === "text" ? block.text : ""))
     .join("\n");
 }
@@ -109,17 +116,22 @@ describe("read 输出", () => {
     );
   });
 
-  it("read 的图片错误指向 read_image", async () => {
-    // 1x1 透明 PNG（最小合法文件）：内核按魔数识别成图片，返回文本块 + image 块
+  it("png 图片直接以图片块返回（1.2.0 起 read 原生读图）", async () => {
+    // 1x1 透明 PNG（最小合法文件）：内核按魔数识别成图片，返回 image 块 + info 诊断
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
       "base64",
     );
     await writeFile(path.join(root, "pixel.png"), png);
 
-    const result = await runRead({ path: "pixel.png" });
-    expect(result.isError).toBe(true);
-    expect(result.diagnostics?.[0]?.message).toContain("read_image");
-    expect(result.content).toEqual([]);
+    // 图片路径要解析会话模型（模型不可解析时按「可读图 + 默认限制」处理）
+    const result = await runRead(
+      { path: "pixel.png" },
+      { agent: (async () => ({ model: undefined })) as never },
+    );
+    expect(result.isError).not.toBe(true);
+    const image = (result.output ?? []).find((block) => block.type === "image");
+    expect(image).toBeDefined();
+    expect(result.diagnostics?.[0]?.message).toContain("Read image file");
   });
 });

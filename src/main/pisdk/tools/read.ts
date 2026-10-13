@@ -1,4 +1,6 @@
 // 给 pi-durable 的文本 read 输出添加文件行号；分页与诊断保留原生结构。
+// 1.2.0 起原生 read 会直接返回图片块（png/jpg/webp/gif 在模型限制内）；
+// `unsupported_image` 的含义已变成「这张图无法准备/超出内联限制」，文案里给出 read_image 这条替代路。
 import type { ToolRegistration } from "@earendil-works/pi-durable";
 import { createReadTool } from "@earendil-works/pi-durable/tools";
 
@@ -24,16 +26,19 @@ export function createReadToolWithLineNumbers(): ToolRegistration {
         ...result,
         diagnostics: result.diagnostics.map((item) =>
           item.code === "unsupported_image"
-            ? { ...item, message: `${params.path} is an image. Use read_image to inspect it.` }
+            ? {
+                ...item,
+                message: `${item.message}. Use read_image to read this file directly (image data with dimensions, 16 MiB guard).`,
+              }
             : item,
         ),
       };
     }
-    // 只有「单块纯文本」才是按行组织的文件内容：图片附件与多块结果原样返回
-    const only = result.content?.length === 1 ? result.content[0] : undefined;
+    // 只有「单块纯文本」才是按行组织的文件内容：图片块与多块结果原样返回
+    const only = result.output?.length === 1 ? result.output[0] : undefined;
     if (only === undefined || only.type !== "text") return result;
     const firstLine = Math.max(1, Math.floor(params.offset ?? 1));
-    return { ...result, content: [{ ...only, text: numberLines(only.text, firstLine) }] };
+    return { ...result, output: [{ ...only, text: numberLines(only.text, firstLine) }] };
   };
   return { ...inner, execute };
 }

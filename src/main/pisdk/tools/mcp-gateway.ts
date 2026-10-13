@@ -164,7 +164,7 @@ export function createMcpGatewayTool(
       if (innerTool === "") {
         return {
           isError: true,
-          content: [
+          output: [
             {
               type: "text",
               text: `Error: 缺少 tool 参数。可用工具：${[...known.keys()].join(", ") || "（这台 server 没有列出工具）"}。`,
@@ -176,7 +176,7 @@ export function createMcpGatewayTool(
       if (!known.has(innerTool)) {
         return {
           isError: true,
-          content: [
+          output: [
             {
               type: "text",
               text: `Error: 「${server.serverName}」没有工具「${innerTool}」。可用工具：${[...known.keys()].join(", ") || "（无）"}。`,
@@ -198,7 +198,7 @@ export function createMcpGatewayTool(
           ? [{ type: "text" as const, text: "Error: MCP 工具返回错误。" }, ...clipped.content]
           : clipped.content;
         return {
-          content,
+          output: content,
           isError: result.isError,
           details: details(result.isError, clipped.truncated, innerTool),
         };
@@ -206,7 +206,7 @@ export function createMcpGatewayTool(
         if (signal?.aborted || error instanceof McpAbortError) throw error;
         const message = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text", text: `Error: 调用 MCP 工具失败：${message}` }],
+          output: [{ type: "text", text: `Error: 调用 MCP 工具失败：${message}` }],
           isError: true,
           details: details(true, false, innerTool),
         };

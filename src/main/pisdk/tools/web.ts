@@ -261,7 +261,7 @@ export function describeWebError(error: unknown): string {
 /** 统一出口：文本 + details */
 function textResult<TDetails>(text: string, details: TDetails) {
   return {
-    content: [{ type: "text" as const, text }],
+    output: [{ type: "text" as const, text }],
     details,
     isError: text.startsWith("Error:"),
   };
