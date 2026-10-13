@@ -131,6 +131,31 @@ describe("mapEntriesToMessages", () => {
     });
   });
 
+  it("durationMs 透传：助手回复与工具结果的耗时都带上（内核 1.2.0 测量）", () => {
+    const entries: AppEntry[] = [
+      messageEntry("a1", 1, {
+        ...assistantMessage([
+          { type: "toolCall", id: "call-x", name: "read", arguments: { path: "a.txt" } },
+        ]),
+        durationMs: 4_200,
+      }),
+      messageEntry(
+        "t1",
+        2,
+        toolResultMessage({
+          toolCallId: "call-x",
+          content: [{ type: "text", text: "ok" }],
+          durationMs: 350,
+        }),
+      ),
+    ];
+
+    const { messages } = mapEntriesToMessages(entries);
+    expect(messages[0]?.durationMs).toBe(4_200);
+    const part = messages[0]?.parts.find((candidate) => candidate.type === "tool-call");
+    expect(part).toMatchObject({ durationMs: 350, status: "done" });
+  });
+
   it("user 图片内容映射为 dataUrl", () => {
     const entries: AppEntry[] = [
       messageEntry("u1", 1, {

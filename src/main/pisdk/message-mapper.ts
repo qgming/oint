@@ -195,6 +195,8 @@ function mapAssistantMessage(
     parts,
     status: failed ? "error" : "complete",
     ...(usage === undefined ? {} : { usage }),
+    // 1.2.0：内核测量了本次回复耗时；延迟取回（deferred）的结果没有这个值
+    ...(message.durationMs === undefined ? {} : { durationMs: message.durationMs }),
     ...(failed && message.errorMessage ? { error: message.errorMessage } : {}),
   };
 }
@@ -229,6 +231,8 @@ function applyToolResult(message: ToolResultMessage, pending: PendingToolCalls):
   if (images !== undefined) part.images = images;
   part.isError = message.isError;
   part.status = message.isError ? "error" : "done";
+  // 1.2.0：内核测量了这次执行耗时（未执行/中断的调用没有这个值）；界面的历史回读靠它。
+  if (message.durationMs !== undefined) part.durationMs = message.durationMs;
 }
 
 /**

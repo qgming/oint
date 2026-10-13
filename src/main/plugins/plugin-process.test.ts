@@ -65,7 +65,12 @@ async function setup(execute: (ctx: Ctx) => Promise<string> = async () => "ok") 
         kind: "default",
         description: state.description,
         async execute(_args, ctx) {
-          return { output: [{ type: "text", text: await execute(ctx) }] };
+          const text = await execute(ctx);
+          return {
+            output: [{ type: "text", text }],
+            // F4：structuredOutput 也要原样过桥（1.2.0 的程序化调用通道）
+            structuredOutput: { text },
+          };
         },
         async command() {
           return "command";
@@ -119,7 +124,11 @@ const invoke = (
 describe("plugin host link (chord 1.2)", () => {
   it("invokes PluginAgent.execute and hydrates/updates the description state", async () => {
     const { process, update } = await setup();
-    expect(await invoke(process)).toMatchObject({ output: [{ text: "ok" }] });
+    expect(await invoke(process)).toMatchObject({
+      output: [{ text: "ok" }],
+      // 结构化输出随结果原样过桥（codemode/嵌套调用的通道）
+      structuredOutput: { text: "ok" },
+    });
     // 远端状态成员需要订阅才会持续推送增量（process-host 同样是订阅方）。
     const stop = process.description.subscribe(() => {});
     cleanups.push(stop);

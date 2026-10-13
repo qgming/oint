@@ -203,10 +203,16 @@ export function projectConversationView(
   const nativeCompaction = extras.compaction;
   const liveCompaction = live?.compactions?.at(-1);
   const compactEntry = records.filter((entry) => entry.kind === "pi.compaction").at(-1);
+  /**
+   * 1.2.0 起内核在 live 上保留「最近的未解决压缩失败」（直到哪次压缩真的产出摘要才清除）。
+   * 它补上了两个此前的盲区：失败任务的 live 状态被移除后（事件错过 / 窗口重开）无从展示，
+   * 以及失败之后又被手动取消/无内容可压时，最近一次尝试的终态会掩盖那次真实失败。
+   */
+  const compactionFailure = live?.compactionFailure;
   let compaction: SessionCompaction | null = null;
-  if (nativeCompaction || liveCompaction || compactEntry) {
+  if (nativeCompaction || liveCompaction || compactEntry || compactionFailure) {
     const input = nativeCompaction?.input as { reason?: string } | undefined;
-    const reason = liveCompaction?.reason ?? input?.reason ?? "manual";
+    const reason = liveCompaction?.reason ?? input?.reason ?? compactionFailure?.reason ?? "manual";
     const outcome = nativeCompaction?.state.outcome;
     const result =
       outcome?.status === "completed"
@@ -250,6 +256,21 @@ export function projectConversationView(
     };
     if (result?.submissionId && !complete && outcome?.status === "completed")
       compaction.phase = "running";
+    // 未解决的失败覆盖「最近一次尝试」的终态：运行中的压缩不动（内核成功后会清掉失败记录，
+    // 所以它存在即意味着还没有成功收尾；取消/无内容可压都不会把它清掉）。
+    if (compactionFailure !== undefined && compaction.phase !== "running") {
+      const failedReason =
+        compactionFailure.reason === "threshold" || compactionFailure.reason === "overflow"
+          ? compactionFailure.reason
+          : "manual";
+      compaction = {
+        ...compaction,
+        phase: "failed",
+        reason: failedReason,
+        endedAt: compaction.endedAt ?? timestamp,
+        error: compactionFailure.error,
+      };
+    }
   }
   return detached({
     conversationId: view.conversation.id,

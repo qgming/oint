@@ -230,6 +230,8 @@ export const enUS = {
     editDiscards_other: "Sending discards {{count}} replies",
     editSubmitHint: "Enter to save · Shift+Enter for a new line · Esc to cancel",
     scrollToBottom: "Scroll to bottom",
+    // Assistant message footer: wall-clock time the kernel measured for this response.
+    responseTime: "Responded in {{duration}}",
     // Message map rail: accessible name for the rail, plus each tick's preview title and fallback
     messageMap: "Message map",
     messageMapUser: "User message",

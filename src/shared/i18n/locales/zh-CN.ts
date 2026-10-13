@@ -222,6 +222,8 @@ export const zhCN = {
     editDiscards_other: "发送将丢弃其后 {{count}} 条回复",
     editSubmitHint: "Enter 保存 · Shift+Enter 换行 · Esc 取消",
     scrollToBottom: "滚动到底部",
+    // 助手消息脚注的耗时读数（内核测量的本次回复耗时）
+    responseTime: "本次回复耗时 {{duration}}",
     // 左侧消息地图：刻度条的无障碍名称、每格的悬浮预览标题与占位
     messageMap: "消息地图",
     messageMapUser: "用户消息",

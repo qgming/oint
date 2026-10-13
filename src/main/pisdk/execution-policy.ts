@@ -1,4 +1,5 @@
 import { defineDoc } from "@earendil-works/pi-durable";
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import type { JsonRepresentation } from "@earendil-works/chord";
 import type { AgentMode } from "@/shared/contracts/common";
 import type { WorkContract } from "@/shared/contracts/workflow";
@@ -32,6 +33,8 @@ const effects: Readonly<Record<string, ToolEffect>> = {
   grep: "read",
   ask_user: "metadata",
   todo: "metadata",
+  // 检索延迟工具只读本会话元数据：受限工作里也允许（否则受限会话摸不到 MCP 工具）
+  [TOOL_SEARCH_TOOL_NAME]: "read",
   ...Object.fromEntries(WEB_READ_ONLY_TOOL_NAMES.map((name) => [name, "read"])),
   ...Object.fromEntries(WORKFLOW_TOOL_NAMES.map((name) => [name, "metadata"])),
   Task: "delegate",

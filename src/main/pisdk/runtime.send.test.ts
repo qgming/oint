@@ -17,6 +17,7 @@ import {
   Harness,
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatAttachment } from "@/shared/contracts/attachment";
@@ -1066,6 +1067,43 @@ describe("native durable chat runtime", () => {
       expect(JSON.stringify(agent?.extensions)).not.toContain("test-plugin");
       expect(JSON.stringify(agent?.tools)).not.toContain("mcp__late__write");
       expect(JSON.stringify(agent?.tools)).not.toContain('"write"');
+    });
+  });
+
+  it("tool_search 网关：延迟的 MCP 工具默认不进模型清单，搜索后装入会话模型工具", async () => {
+    // 先跑一轮把会话运行时与首轮配置建出来（刷新只在已有运行时上生效）
+    faux.setResponses([acknowledgeInput(), fauxAssistantMessage("hello")]);
+    await runtime.send(sessionId, "warm up");
+    mcpTools = [
+      defineTool({
+        name: "mcp__demo__call",
+        description: "Search the demo knowledge base",
+        parameters: Type.Object({}),
+        deferred: true,
+        execute: async () => ({ output: [] }),
+      }),
+    ];
+    for (const notify of mcpListeners) notify();
+    const opened = (await store.open(sessionId))!;
+    // 刷新后：tool_search 常驻且扩展已选中；延迟工具处于「已启用但未装载」——
+    // 未装载的延迟工具不会出现在模型的清单里（内核 modelTools 规则），故 modelTools 不含它。
+    await vi.waitFor(async () => {
+      const agent = await readDocument(opened.storage, "pi.agent", opened.conversationId);
+      expect(JSON.stringify(agent?.extensions)).toContain("tool-search");
+      expect(JSON.stringify(agent?.tools)).toContain(TOOL_SEARCH_TOOL_NAME);
+      expect(JSON.stringify(agent?.tools)).toContain("mcp__demo__call");
+      expect(JSON.stringify(agent?.modelTools ?? null)).not.toContain("mcp__demo__call");
+    });
+    faux.setResponses([
+      acknowledgeInput(),
+      toolResponse(fauxToolCall(TOOL_SEARCH_TOOL_NAME, { query: "demo knowledge base" })),
+      fauxAssistantMessage("done"),
+    ]);
+    await runtime.send(sessionId, "find the demo tools");
+    // 命中经 control.addTools 写进会话的 modelTools.add：下一轮开始对模型可见，跨压缩保留
+    await vi.waitFor(async () => {
+      const agent = await readDocument(opened.storage, "pi.agent", opened.conversationId);
+      expect(JSON.stringify(agent?.modelTools)).toContain("mcp__demo__call");
     });
   });
 

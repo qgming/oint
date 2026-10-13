@@ -32,6 +32,7 @@ import {
   UserEntry,
 } from "@earendil-works/pi-durable";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
+import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search";
 import { dataDir } from "@/main/app/paths";
 import { ensurePluginWorkspace, pluginContributionDirs } from "@/main/plugins/contributions";
 import { pluginExtensions, subscribePluginExtensions } from "@/main/plugins/process-host";
@@ -165,6 +166,21 @@ import {
   composeWorkflow,
   type PlanExecutionRequest,
 } from "./workflow";
+
+/**
+ * 延迟工具网关（pi-durable 的 tool-search 扩展）：聚合 MCP 网关注册为 deferred 后，
+ * 模型用 `tool_search` 按需装载进下一轮（装载写进会话的 modelTools，跨压缩保留）。
+ * 扩展是静态的，跨会话复用同一实例 —— 与插件扩展、子智能体扩展同一种做法。
+ */
+const TOOL_SEARCH_EXTENSION = createToolSearchExtension();
+
+/** 估算「实际会进请求体」的工具表：延迟工具不算，tool_search 本身要算。 */
+function offeredToolsForEstimate(registrations: readonly ToolRegistration[]): ToolRegistration[] {
+  return [
+    ...registrations.filter((tool) => tool.deferred !== true),
+    ...(TOOL_SEARCH_EXTENSION.tools ?? []),
+  ];
+}
 
 export interface ChatRuntimeDeps {
   getSettings: () => Promise<Settings>;
@@ -936,9 +952,11 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
       const whitelist = runtime.spec?.definition.tools;
       const plugins = workAllowsEffects(runtime.admittedWork) ? workPlugins(runtime.env.cwd) : [];
       for (const plugin of plugins) runtime.registry.install(plugin.extension);
+      runtime.registry.install(TOOL_SEARCH_EXTENSION);
       const available = [
         ...nextTools,
         ...plugins.flatMap((plugin) => plugin.extension.tools ?? []),
+        ...(TOOL_SEARCH_EXTENSION.tools ?? []),
       ];
       const selected = (
         whitelist === undefined ? available : restrictTools(available, whitelist)
@@ -951,7 +969,11 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
       await runtime.conversation.configure(
         {
           tools: selected,
-          extensions: [...plugins.map((plugin) => plugin.extension), runtime.extension],
+          extensions: [
+            ...plugins.map((plugin) => plugin.extension),
+            TOOL_SEARCH_EXTENSION,
+            runtime.extension,
+          ],
         },
         BACKGROUND_CONTEXT,
       );
@@ -966,7 +988,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
        */
       runtime.contextBreakdown = {
         ...runtime.contextBreakdown,
-        toolsTokens: estimateToolsTokens(nextTools),
+        toolsTokens: estimateToolsTokens(offeredToolsForEstimate(nextTools)),
       };
     } catch (error) {
       if (forNewTurn) throw error;
@@ -1299,6 +1321,8 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
     const availableTools = [
       ...builtTools,
       ...plugins.flatMap((plugin) => plugin.extension.tools ?? []),
+      // 延迟工具网关本体（tool_search）随扩展走；它必须常驻，否则没人能检索延迟工具
+      ...(TOOL_SEARCH_EXTENSION.tools ?? []),
     ];
     parentToolNames = availableTools
       .filter((tool) => !undelegatable.has(tool.name))
@@ -1311,7 +1335,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
     ).filter((tool) => toolAllowedByWork(admittedWork, tool.name));
     // 上下文分解的固定项：系统提示词与工具定义按「请求装配时」的估算值缓存
     const systemTokens = estimateTokens(systemPrompt);
-    const toolsTokens = estimateToolsTokens(tools);
+    const toolsTokens = estimateToolsTokens(offeredToolsForEstimate(tools));
     const registry = family?.registry ?? createRegistry();
     registry.install(subagentTasks.extension);
     if (!family)
@@ -1322,6 +1346,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
         }),
       );
     for (const plugin of plugins) registry.install(plugin.extension);
+    registry.install(TOOL_SEARCH_EXTENSION);
     const extension = defineExtension({
       name: `oint:${opened.conversationId}`,
       tools: builtTools.filter((tool) => tools.some((selected) => selected.name === tool.name)),
@@ -1367,7 +1392,11 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
       await conversation.configure(
         {
           tools,
-          extensions: [...plugins.map((plugin) => plugin.extension), extension],
+          extensions: [
+            ...plugins.map((plugin) => plugin.extension),
+            TOOL_SEARCH_EXTENSION,
+            extension,
+          ],
           cwd,
           model: { provider: modelRef.serviceId, modelId: modelRef.modelId },
           thinkingLevel: clampThinkingLevel(

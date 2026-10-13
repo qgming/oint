@@ -55,10 +55,12 @@ export function toThreadMessage(
     // "status is only supported for assistant messages" 并导致整树崩溃白屏
     ...(message.role === "assistant" ? { status: toMessageStatus(message) } : {}),
     // entryId / origin 走 metadata.custom 通道透出：entryId 供「分支」映射回 pi 条目，
-    // origin 供渲染层判断是否按系统通知行渲染（UserMessage origin === "system" 分支）
+    // origin 供渲染层判断是否按系统通知行渲染（UserMessage origin === "system" 分支）；
+    // durationMs 供消息脚注展示内核测量的回复耗时。
     ...(message.entryId === undefined &&
     message.origin === undefined &&
-    message.generationId === undefined
+    message.generationId === undefined &&
+    message.durationMs === undefined
       ? {}
       : {
           metadata: {
@@ -66,6 +68,7 @@ export function toThreadMessage(
               ...(message.entryId === undefined ? {} : { entryId: message.entryId }),
               ...(message.origin === undefined ? {} : { origin: message.origin }),
               ...(message.generationId === undefined ? {} : { generationId: message.generationId }),
+              ...(message.durationMs === undefined ? {} : { durationMs: message.durationMs }),
             },
           },
         }),

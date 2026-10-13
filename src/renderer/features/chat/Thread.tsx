@@ -21,7 +21,7 @@ import { DaySeparatorRow } from "@/renderer/components/assistant-ui/elements/day
 import { StatusBar } from "@/renderer/components/assistant-ui/elements/stats-pills";
 import { mono } from "@/renderer/components/assistant-ui/elements/surfaces";
 import { TooltipIconButton } from "@/renderer/components/assistant-ui/elements/tooltip-icon-button";
-import { dayOffset, formatDayDate, isSameDay } from "@/renderer/lib/format";
+import { dayOffset, formatDayDate, formatDuration, isSameDay } from "@/renderer/lib/format";
 import { cn } from "@/renderer/lib/utils";
 import { useChatStore } from "@/renderer/stores/chat-store";
 import { useUiStore } from "@/renderer/stores/ui-store";
@@ -127,6 +127,29 @@ function AssistantActionBar() {
         </TooltipIconButton>
       )}
     </ActionBarPrimitive.Root>
+  );
+}
+
+/**
+ * 段尾的耗时读数：内核（pi-ai）测量的这条回复耗时，经 message-converter 的
+ * metadata.custom.durationMs 透出。没有值（延迟取回的结果、旧会话）时不渲染，
+ * 操作栏保持原样；运行中的耗时在状态行里另行现算，两者互不重复。
+ */
+function AssistantDuration() {
+  const { t } = useTranslation();
+  const durationMs = useAuiState((s) => {
+    const custom = s.message.metadata?.custom as { durationMs?: unknown } | undefined;
+    return typeof custom?.durationMs === "number" ? custom.durationMs : undefined;
+  });
+  if (durationMs === undefined || durationMs <= 0) return null;
+  const duration = formatDuration(durationMs);
+  return (
+    <span
+      className="ms-auto text-xs text-ink-4 tabular-nums"
+      title={t("chat.responseTime", { duration })}
+    >
+      {duration}
+    </span>
   );
 }
 
@@ -254,6 +277,7 @@ function AssistantMessage() {
           className={cn("ms-2 flex items-center", ACTION_BAR_ROW)}
         >
           <AssistantActionBar />
+          <AssistantDuration />
         </div>
       )}
     </MessagePrimitive.Root>

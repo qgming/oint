@@ -2,6 +2,7 @@
 
 import { mkdir, readFile } from "node:fs/promises";
 import path, { isAbsolute } from "node:path";
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import { assessCommand } from "@/main/security/command-guard";
 import { writeFileAtomic } from "@/main/storage/atomic-write";
 import { BROWSER_READ_ONLY_TOOL_NAMES } from "@/shared/contracts/browser";
@@ -75,6 +76,11 @@ const LOW_RISK_TOOLS = new Set([
    * 变成一次弹卡 —— 而这个工具恰恰是聚合形态下每次调用前的必经一步。
    */
   MCP_CATALOG_TOOL_NAME,
+  /**
+   * `tool_search`（pi-durable 的延迟工具网关）：只读本会话的工具元数据并把命中装载进
+   * 下一轮。不碰工作区、不改外部状态；「装载」是内核的会话配置动作 —— 与 mcp_tools 同档。
+   */
+  TOOL_SEARCH_TOOL_NAME,
   ...WEB_READ_ONLY_TOOL_NAMES,
   ...BROWSER_READ_ONLY_TOOL_NAMES,
   BACKGROUND_JOB_TOOL_NAMES.output,

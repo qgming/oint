@@ -402,15 +402,18 @@ export function createMcpServers(deps: McpServersDeps): McpServers {
         warn(`MCP 工具超过 ${MAX_MCP_TOOLS} 个，已省略其余 server（${id}）`);
         return result;
       }
-      result.push(
-        createMcpGatewayTool(gatewayServer(id, entry), {
+      result.push({
+        // 聚合网关默认延迟：几十台 server 的 schema 不必每轮都进请求体，模型用
+        // tool_search 按需装载；mcp_tools 目录仍常驻，作为「不想搜索时的索引」。
+        ...createMcpGatewayTool(gatewayServer(id, entry), {
           callTool: (serverId, toolName, args, signal) => {
             if (!visible(serverId, cwd))
               return Promise.reject(new Error("插件 MCP 不属于此工作区或已停用"));
             return callTool(serverId, toolName, args, signal);
           },
         }),
-      );
+        deferred: true,
+      });
     }
     return result;
   }

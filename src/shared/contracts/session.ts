@@ -152,6 +152,11 @@ export interface ToolCallPart {
   images?: ToolPartImage[];
   isError?: boolean;
   status: "running" | "done" | "error" | "pending-approval" | "denied";
+  /**
+   * 内核测量的单次执行耗时（pi-durable 1.2.0 起随 toolResult 条目落盘）。
+   * 界面的「运行中耗时」由 run 现算；这里是历史回读（run 起止缺失）时的权威回退。
+   */
+  durationMs?: number;
 }
 
 /** 工具结果里的图片块 → 界面可直接渲染的形态（与 ImagePart 同形，但不占消息的 parts 槽位） */
@@ -265,6 +270,8 @@ export interface ChatMessage {
   parts: ChatPart[];
   status: "complete" | "streaming" | "error";
   usage?: ChatMessageUsage;
+  /** 内核测量的本次回复耗时（AssistantMessage.durationMs；延迟取回的结果没有这个值） */
+  durationMs?: number;
   error?: string;
 }
 
