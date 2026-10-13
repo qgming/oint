@@ -1,5 +1,7 @@
 # Pi 1.0.0 原生生态重构实施记录
 
+> **历史记录（1.0.0 时代的实施快照）**：包集合、插件加载方式（bundle 预构建）与本文所述的部分细节已被 [Pi 1.0.0 → 1.2.0 升级记录](pi-upgrade-1.2.md) 取代；保留用于回溯当时的实施决策。
+
 本次按已确认方案实施，排除 `pi-coding-agent`、`pi-tui` 和无关 CLI/TUI 依赖，不保留旧插件格式、旧 RPC 或旧事件协议兼容层。优化依据见 [调研报告](pi-native-optimization-report.md)，插件作者接口见 [原生插件 API](plugin-native-api.md)。
 
 ## 依赖和构建

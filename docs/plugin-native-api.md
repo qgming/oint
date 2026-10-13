@@ -1,26 +1,34 @@
-# Native plugin implementation
+# Native plugin implementation (chord 1.2)
 
-2026-10-02. Current implementation replaces the earlier plugin-system plans. Author contract and examples: [plugin-authoring skill](../resources/skills/plugin-authoring/SKILL.md), [agent service](../src/main/plugins/agent-service.ts), [toolkit facet](../resources/plugins/toolkit/agent.ts).
+2026-10-14. 本次升级把插件子系统整体迁到 chord 1.2 的 host 运行时；旧的 facet bundle / pi-client / pi-server 协议栈全部移除。面向插件作者的使用说明见内置技能 plugin-authoring；现成例子在 `resources/plugins/toolkit`。
 
-Package identity comes from package.json. Oint keeps presentation/capability metadata under `oint`; executable plugins use Chord's `chord.facets.agent` and prebuilt `dist/chord-facets.json`. Official loaders verify the bundle. Local ZIP install runs no package scripts. Development mounts rebuild with `bundleFacetPackage` on explicit reload.
+## 模型
 
-Each source has one utilityProcess shared across workspaces. Chord owns facet activation/services/disposal. Pi Client, Server and Protocol own framed bytes, request correlation, cancellation and service subscriptions. The Electron adapter only transports ordered byte chunks. A host-owned disposal service releases facets before process termination, bounded to one second.
+- **插件子进程 = 一台 Chord host**（`createHost({ name: "plugin:<uuid>", loader: nodeLoader, upstream: ipcLink(...) })`），父进程把它 `accept` 进共享的插件 host（`oint-plugins`），再以 `at: "plugin:<uuid>"` 拿 `PluginAgent` 句柄。
+- **契约**：`plugin-api.ts` 用 `remote("oint.plugin.agent", …)` 定义宿主与插件共用的对象——`description` 状态 + `execute/command/beforeTool/afterTool` 四个方法（单对象入参，取消走 Chord 的 `ctx.signal`）。
+- **源码直载**：插件以 `.ts` 源码分发，子进程用 `nodeLoader` 直接导入（Node 类型剥离）。没有 bundler、没有 `dist/chord-facets.json`；旧格式包会被 `artifact.ts` 以明确错误拒绝。
+- **依赖供给**：插件目录没有 node_modules。worker 入口在注册 resolve hook **之前**预解析白名单说明符（`oint:plugin` → dist-electron/plugin-api.js；`@earendil-works/chord`(+node/context/delta)；`typebox`(+value)），运行期由 hook 短路映射；其余裸导入由 Node 原生解析（对插件目录通常失败）。
+- **握手**：链路是 Electron utilityProcess 的 MessagePort，经 `link.ts` 适配成 chord 的 IpcChannel（消息在监听者出现前缓冲，避免把 hello 吃掉）。子进程 `host.load([entry])` 成功后发 `{ ointControl: "ready" }`；致命错误发 `{ ointControl: "fatal" }` 后退出。
+- **生命周期**：`retire()` 等在飞调用结束再停；`stop()` 释放句柄、关链路、杀进程。死链由 `onExit` 上报，`process-host` 把该插件的发布降级为「策略不可用」扩展（beforeTool 阻塞而不是静默消失）。
 
-Each plugin publishes a distinct Durable Extension with direct schema-bearing tools, static sections, and native beforeTool/afterTool hooks. Host policy follows plugin argument transformation. Native function-valued task/commit APIs remain local to the Harness; the isolated service boundary exposes serializable results and descriptors. Surface BrowserWindow/webview ownership, CSP, URL/file guards and actual capability checks remain application responsibilities.
+## 宿主侧装配（process-host.ts）
 
-Changed packages create a new host rather than invoking Chord reload with a different dependency/service shape. Publication replaces extension objects only after successful activation. Started service calls lease the old worker until completion; failed candidate activation retains a working previous generation. A failed required beforeTool extension blocks calls rather than silently disappearing. No old manifest, RPC envelope, hook matcher chain, tool gateway or generation-counter compatibility layer remains.
+- 每个 source 目录一个子进程，签名 = 入口文件内容哈希 + manifest；内容变则替换新一代。
+- `description` 是远端状态：订阅带 `undefined` 守卫（远端快照到达前可能先给 undefined），首发值用 `firstDescription` 等待；校验（`validateAgentDescription`）失败保留上一代已发布定义。
+- 每个插件发布一个独立 Durable Extension：直接公开每个工具的 schema、静态 sections、beforeTool/afterTool 钩子。钩子/工具调用分别限时 5s / 120s。
 
-Project resources, extensions and plugin MCP endpoints are selected using the conversation cwd. Global sources share processes and MCP connections; project endpoint identifiers include the source identity. Disabling a plugin refreshes every loaded workspace. UI cwd selects only the management surface.
+## 兼容与安全
 
-Switching the management workspace synchronously revokes project surface owners and closes their guests before updating cwd. Project partitions and protocol handlers bind to the original source/workspace, including when both projects contain the same package id. Global Git surfaces retain their partition and follow the selected cwd. MCP endpoint names always hash the original source/member pair before readable-name normalization.
+- **旧产物**：含 `dist/chord-facets.json` 的包在安装/加载时得到 `LegacyPluginArtifactError`，附迁移说明（删掉 dist、给 package.json 加 `"type": "module"`、入口保持 `.ts`）。
+- **写入 principal**：插件更新自己的 `description` 需要 Chord 根（`Ctx`）且 principal 与记录一致（父侧取走的记录 principal 为 `{ host: <父host名> }`，即 `oint-plugins`）。在方法里用收到的 `ctx` 写入即可。
+- 权限面不变：宿主仍按 `oint.permissions` 装配工具/钩子/section；进程隔离仍只是崩溃隔离，不宣称 OS 沙箱。
 
-Verification commands:
+## 验证
 
 ```text
-node scripts/build-plugins.mjs
 npx vitest run src/main/plugins
 node scripts/probe-native-plugins.mjs
-node scripts/probe-native-plugins.mjs --packaged
+node scripts/probe-native-plugins.mjs --packaged   （需先 npm run pack）
 ```
 
-The packaged probe requires `npm run pack`. It launches the actual worker from app.asar, resolves its packaged official dependencies, loads the unpacked toolkit artifact, invokes the native hash tool and verifies utilityProcess teardown. It is a worker/artifact test; main application GUI tests remain separate.
+打包探针从 app.asar 启动真实 worker、解析打包后的官方依赖、加载 app.asar.unpacked 里的 toolkit 源码、调用原生 hash 工具并验证 utilityProcess 退出。

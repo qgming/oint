@@ -1,21 +1,19 @@
 ---
 name: plugin-authoring
-description: 创建或修改 Oint 插件，包括 Chord agent facet、工具、原生工具钩子、技能、提示、MCP 和桌面面板。产出可加载的 package.json 插件目录或预构建 ZIP 包。
+description: 创建或修改 Oint 插件，包括 Chord agent facet、工具、原生工具钩子、技能、提示、MCP 和桌面面板。产出可加载的 package.json 插件目录。
 ---
 
 # Oint 插件
 
-插件使用 `package.json` 和 Chord 1.0.0 的 facet bundle。先阅读宿主的 `src/main/plugins/agent-service.ts` 与 `src/main/plugins/manifest.ts`；现成例子在 `resources/plugins/toolkit/agent.ts`、`resources/plugins/git-status`、`resources/plugins/scratchpad`。
+插件是一个目录：`package.json` + 可选的 `agent.ts`（Chord facet 源码）+ 资源文件。宿主示例看仓库的 `src/main/plugins/plugin-api.ts`、`src/main/plugins/manifest.ts` 与 `resources/plugins/toolkit/agent.ts`。
 
-在当前项目的 `.oint/plugins/<name>/` 创建源码。项目插件、全局安装包和开发挂载默认停用，由用户在插件管理中启用。加载开发目录和手动重载会调用官方 `bundleFacetPackage`，不执行 npm lifecycle scripts。
+在当前项目的 `.oint/plugins/<name>/` 创建源码。项目插件、全局安装包和开发挂载默认停用，由用户在插件管理中启用。
 
 ## 包结构
 
 ```text
 package.json
-agent.ts                    # 可选的 Chord facet 源码
-dist/chord-facets.json       # 可执行 ZIP 包必须预构建
-dist/<content-hash>.cjs      # 官方 bundler 生成，不能手写 hash
+agent.ts                    # 可选的 Chord agent facet 源码（直接运行，无需构建）
 skills/<name>/SKILL.md
 prompts/<name>.md
 subagents/<name>.md
@@ -28,7 +26,8 @@ ui/index.html
   "name": "@example/helper",
   "version": "1.0.0",
   "description": "Describe the feature",
-  "peerDependencies": { "@earendil-works/chord": "1.0.0" },
+  "type": "module",
+  "peerDependencies": { "@earendil-works/chord": "1.2.0" },
   "chord": { "facets": { "agent": "./agent.ts" } },
   "oint": {
     "displayName": "Helper",
@@ -37,27 +36,49 @@ ui/index.html
 }
 ```
 
-只贡献界面或文件时省略 `chord` 和 `agent.ts`。包名是身份，宿主据此分配私有数据、面板分区与工具名称。打包 ZIP 时保留 package.json、已构建 dist 和资源文件；宿主安装时校验 Chord SHA-256 与包身份。
+只贡献界面或文件时省略 `chord` 和 `agent.ts`。包名是身份，宿主据此分配私有数据、面板分区与工具名称。安装的 ZIP 直接放源码（不需要 `dist/`）；宿主在子进程里用 Node 类型剥离直接加载 `.ts`，因此：**只允许可擦除的 TS 语法**（不要 enum / namespace / 参数属性），**相对导入必须带 `.ts` 扩展名**（`import { x } from "./util.ts"`），且 `"type": "module"` 必须声明。**不引入第三方 npm 依赖**（插件目录没有 node_modules；宿主只提供下述坐标）。
 
-## Agent service
+## Agent facet（`agent.ts`）
 
-Facet 使用官方 `defineFacet`、`defineService`、`env.provide`、`env.replicatedState`、`env.own` 与激活/释放方法。导出默认 facet 或 facet 数组。提供 `oint.plugin.agent` service，方法最后一个参数必须是 Chord `Context`，返回 Promise。
+```ts
+import { cell, defineFacet } from "@earendil-works/chord";
+import { PluginAgent, pluginAgentDescriptionSchema } from "oint:plugin";
 
-服务契约：
+export default defineFacet((host) => {
+  host.serve(
+    PluginAgent,
+    (_input, _principal, self) => {
+      const state = self.state({
+        description: cell(pluginAgentDescriptionSchema, { tools: [], commands: [], sections: [] }),
+      });
+      return {
+        kind: "default",
+        description: state.description,
+        async execute({ name, args, invocation }, ctx) {
+          ctx.signal.throwIfAborted();          // 取消走 ctx.signal
+          return { output: [{ type: "text", text: `${name} 收到 ${JSON.stringify(args)}` }] };
+        },
+        async command({ name, args, cwd }) { return `${cwd}: ${name} ${args}`; },
+        async beforeTool({ call, invocation }) { return {}; },     // 或 { block } / { arguments }
+        async afterTool({ call, result, invocation }) { return result; },
+      };
+    },
+    { eager: true },
+  );
+});
+```
 
-- `description`: replicated state，含 `tools`、`commands`、`sections`。
-- `execute(name, args, invocation, context)`: 返回原生 Durable `ToolExecutionResult`，含 content、details、diagnostics、usage 等 JSON 数据。invocation 含 callId、taskId、conversationId、cwd。
-- `command(name, args, cwd, context)`: 返回显示给用户的文本。
-- `beforeTool(call, invocation, context)`: 返回 `{arguments?, block?}`。需要 `oint.hooks: ["beforeTool"]` 和 `hostHooks.register`。
-- `afterTool(call, result, invocation, context)`: 返回原生工具结果。需要 `oint.hooks` 中的 `afterTool`。
+可 import 的裸模块只有：`oint:plugin`（宿主契约与类型）、`@earendil-works/chord`（含 `/node`、`/context`、`/delta`）、`typebox`（含 `/value`），以及 Node 内置模块（`node:crypto` 等）。`import type` 只在类型检查期存在，运行时被剥离。
 
-未使用的方法仍提供空实现：beforeTool 返回 `{}`；afterTool 返回收到的 result；command 对不存在的命令抛错。description 至多包含 64 个工具、64 个命令、32 个 section。工具参数是 JSON object schema，工具名最长 40 字符，字母开头，后续可用字母数字下划线连字符。
+### 契约细节
 
-宿主为每个插件生成独立 Durable Extension，直接公开每个工具的 schema；不要实现工具网关或目录调用协议。description 变更通过 Chord state 发布后，下一次 native registry 解析看到新定义。工具可配置 `replay`、`executionMode`、`outputLimits`；默认 replay 为 unsafe。随机数、时钟、外部写操作保持 unsafe，只有能安全重做的操作才声明 safe。
+- `description`：`{ tools, commands, sections }`。至多 64 个工具、64 个命令、32 个 section；工具名最长 40 字符、字母开头；工具参数必须是 JSON object schema。要更新描述就在**收到 ctx 的方法里**用 `state.description.change(ctx, draft => {...})` 或 `replace(ctx, value)` 写入 —— Chord 的写入需要根上下文与匹配的 principal。
+- `execute` 的返回值：`{ output?, isError?, details?, diagnostics?, structuredOutput? }`。`output` 是给模型的内容块数组（`{type:"text",text}` / `{type:"image",data,mimeType}`）；`details` 是给界面的结构化数据。旧版的 `content` 字段已更名 `output`。
+- `beforeTool` 返回 `{ arguments?, block? }`：改写参数或直接拦截（拦截后宿主不再执行原工具）。需要 `oint.hooks: ["beforeTool"]` 与 `hostHooks.register`。
+- `afterTool` 返回新的工具结果（通常是改过 details 的同一份）。需要 `oint.hooks: ["afterTool"]`。
+- 未使用的方法给空实现：`beforeTool` 返回 `{}`；`afterTool` 返回收到的 result；`command` 对不存在的命令抛错。
 
-所有异步操作传递 `context.abortSignal`。取消和超时通过官方 Client/Server 协议送到服务端；忽略信号会让插件执行在取消后继续运行。工具调用默认 120 秒、工具钩子 5 秒。停止或更新会等待已经开始的服务调用结束后释放旧 worker，失败候选保留此前可工作的版本。无法加载的 beforeTool 策略保持拒绝，用户可停用插件恢复工具调用。
-
-钩子可以改写参数，宿主自己的权限审批在插件钩子之后检查最终参数。不要尝试代替宿主批准工具。原生 task 函数、commit 回调和 ToolExecutionApi 方法不能穿过进程 JSON 边界；第三方 facet 运行在 utilityProcess 中，使用上述服务子集。
+工具调用默认 120 秒、钩子 5 秒；超时与取消经 `ctx.signal` 到达插件。工具可配置 `replay`（默认 unsafe）、`executionMode`、`outputLimits`；随机数、时钟与外部写操作保持 unsafe。宿主自己的权限审批在插件钩子之后按最终参数检查 —— 不要尝试代替宿主批准工具。原生 Durable 的 task 函数、commit 回调与 ToolExecutionApi 不能穿过进程边界。
 
 ## 界面和资源
 
@@ -67,6 +88,10 @@ Facet 使用官方 `defineFacet`、`defineService`、`env.provide`、`env.replic
 
 skills、prompts、subagents 分别需要 skills.contribute、prompts.contribute、subagents.contribute。mcp.json 使用 `{mcpServers:{name:{command,args}|{url}}}`；本地需要 mcp.server.local，远端需要 mcp.server.remote。
 
-utilityProcess 提供崩溃隔离，Node facet 能访问完整 Node API；权限表约束的是宿主提供的能力。使用 `env.own` 清理定时器、连接等资源。私有持久文件可写到 `process.env.OINT_PLUGIN_DATA_DIR`。第三方依赖在作者构建时打进 bundle；host peer dependency 只使用公开的官方 1.0.0 API，不引入 pi-coding-agent、pi-tui 或无关 CLI/TUI。
+插件跑在 utilityProcess 里（崩溃隔离，不是 OS 沙箱）。私有持久文件写到 `process.env.OINT_PLUGIN_DATA_DIR`（宿主会创建该目录并把子进程 cwd 切到那里）。
 
-交付前验证：界面资源路径、包元数据、官方 bundle 完整性、实际工具调用、取消、启停/更新和私有数据保留。验证完成后给出插件目录、功能和使用入口。
+## 旧格式迁移
+
+chord 1.0 的预构建包（含 `dist/chord-facets.json`）会被明确拒绝。迁移：删除 `dist/` 与 package.json 里的 `chord.external` / `chord.sourceMap`；补 `"type": "module"`；把 `agent.ts` 改成上面的新 facet 写法（`defineService`/`env.provide` 已不存在）；给相对导入补 `.ts` 扩展名。
+
+交付前验证：包元数据、实际工具调用、取消（ctx.signal）、启停/更新与私有数据保留。验证完成后给出插件目录、功能和使用入口。
