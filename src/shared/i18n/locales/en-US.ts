@@ -887,7 +887,8 @@ export const enUS = {
     webApiKeySaved: "Saved. Leave empty to keep it",
     webApiKeyGet: "Get an API key",
     webInstances: "SearXNG instances",
-    webInstancesHint: "One address per line; leave empty to use the built-in ones (public instances must enable JSON output)",
+    webInstancesHint:
+      "One address per line; leave empty to use the built-in ones (public instances must enable JSON output)",
     webInstancesBuiltin: "Built-in instances ({{count}}), tried in order when none are configured",
     webTavilyDepth: "Search depth",
     webTavilyAnswer: "Include AI answer",

@@ -12,6 +12,7 @@ import {
   type Model,
   type MutableModels,
 } from "@earendil-works/pi-ai";
+import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import {
   type Conversation,
   createRegistry,
@@ -24,13 +25,14 @@ import {
   InboxDoc,
   LiveDoc,
   type Registry,
-  type SubmissionId,
   type Submission,
+  type SubmissionId,
   section,
   type ToolRegistration,
   ToolTask,
   UserEntry,
 } from "@earendil-works/pi-durable";
+import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search";
 import { dataDir } from "@/main/app/paths";
@@ -77,6 +79,13 @@ import { buildUserContent, parseAttachmentEnvelope, sessionAttachmentsDir } from
 import { readDocument, SessionHandleReleased } from "./durable-session";
 import { errorText } from "./error-text";
 import { createExecEnv } from "./exec-env";
+import {
+  intersectWork,
+  RunPolicyDoc,
+  toolAllowedByWork,
+  WORKFLOW_TOOL_NAMES,
+  workAllowsEffects,
+} from "./execution-policy";
 import { createInteractionService, type InteractionService } from "./interactions";
 import { createJobService, type JobService, JobsDoc } from "./jobs";
 import type { McpToolSource } from "./mcp-servers";
@@ -93,13 +102,6 @@ import {
   getSharedPermissionRuleStore,
   type PermissionRuleStore,
 } from "./permissions";
-import {
-  intersectWork,
-  toolAllowedByWork,
-  workAllowsEffects,
-  RunPolicyDoc,
-  WORKFLOW_TOOL_NAMES,
-} from "./execution-policy";
 import { buildProviders, resolveModel } from "./providers";
 import {
   createRepeatChain,
@@ -147,24 +149,24 @@ import { createJobTools } from "./tools/jobs";
 import { createSubagentTools, SUBAGENT_TOOL_NAMES } from "./tools/subagent";
 import { createWorkflowTools } from "./tools/workflow";
 import {
-  controlGoal as changeGoal,
-  mutateGoal,
-  readWorkflow,
-  summarizeWorkflow,
-  beginWork,
-  registerWorkInput,
-  resolveWorkInput,
-  readPlan as getPlan,
-  archivePlan as archiveSavedPlan,
-  reservePlanExecution,
   admitPlanExecution,
-  releasePlanExecution,
+  archivePlan as archiveSavedPlan,
+  beginWork,
+  controlGoal as changeGoal,
   completePlanExecution,
-  WorkDoc,
+  composeWorkflow,
+  readPlan as getPlan,
+  mutateGoal,
   PlanDoc,
   PlanExecutionDoc,
-  composeWorkflow,
   type PlanExecutionRequest,
+  readWorkflow,
+  registerWorkInput,
+  releasePlanExecution,
+  reservePlanExecution,
+  resolveWorkInput,
+  summarizeWorkflow,
+  WorkDoc,
 } from "./workflow";
 
 /**
@@ -174,11 +176,31 @@ import {
  */
 const TOOL_SEARCH_EXTENSION = createToolSearchExtension();
 
-/** 估算「实际会进请求体」的工具表：延迟工具不算，tool_search 本身要算。 */
+/**
+ * codemode（pi-durable 的代码模式）：模型写 JavaScript，在 QuickJS（WASM）沙箱里把本会话的
+ * 工具当函数调用 —— 脚本没有文件系统、网络、require，唯一能力就是 `tools.*`。
+ * - 沙箱跨会话共享一个实例（每次执行起一个 worker 线程，工具按次注入）；
+ * - 时限放宽到 10 分钟：嵌套调用可能停在审批卡上等人，默认 5 分钟会把这类等待掐掉；
+ * - `models: false`：v1 不给脚本 `models.*`（避免脚本触发隐藏的模型花费）；
+ * - 沙箱参数刻意保守：堆上限 256 MiB。
+ */
+const CODE_MODE_SANDBOX = new CodemodeSandbox({
+  timeoutMs: 600_000,
+  memoryLimitBytes: 256 * 1024 * 1024,
+});
+const CODE_MODE_EXTENSION = createCodemodeExtension({
+  sandbox: CODE_MODE_SANDBOX,
+  models: false,
+});
+
+/** 应用自带的常驻扩展：延迟工具网关 + 代码模式（sections/工具都要进各装配点）。 */
+const BUILTIN_EXTENSIONS = [TOOL_SEARCH_EXTENSION, CODE_MODE_EXTENSION];
+
+/** 估算「实际会进请求体」的工具表：延迟工具不算，内置扩展自己带的和 tool_search 要算。 */
 function offeredToolsForEstimate(registrations: readonly ToolRegistration[]): ToolRegistration[] {
   return [
     ...registrations.filter((tool) => tool.deferred !== true),
-    ...(TOOL_SEARCH_EXTENSION.tools ?? []),
+    ...BUILTIN_EXTENSIONS.flatMap((extension) => extension.tools ?? []),
   ];
 }
 
@@ -952,11 +974,11 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
       const whitelist = runtime.spec?.definition.tools;
       const plugins = workAllowsEffects(runtime.admittedWork) ? workPlugins(runtime.env.cwd) : [];
       for (const plugin of plugins) runtime.registry.install(plugin.extension);
-      runtime.registry.install(TOOL_SEARCH_EXTENSION);
+      for (const extension of BUILTIN_EXTENSIONS) runtime.registry.install(extension);
       const available = [
         ...nextTools,
         ...plugins.flatMap((plugin) => plugin.extension.tools ?? []),
-        ...(TOOL_SEARCH_EXTENSION.tools ?? []),
+        ...BUILTIN_EXTENSIONS.flatMap((extension) => extension.tools ?? []),
       ];
       const selected = (
         whitelist === undefined ? available : restrictTools(available, whitelist)
@@ -971,7 +993,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
           tools: selected,
           extensions: [
             ...plugins.map((plugin) => plugin.extension),
-            TOOL_SEARCH_EXTENSION,
+            ...BUILTIN_EXTENSIONS,
             runtime.extension,
           ],
         },
@@ -1307,7 +1329,8 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
       */
       {
         searchRoots: sessionAllowedRoots(env.cwd, deps.appPath),
-        searchUnrestricted: () => runtimeRef?.pathUnrestricted ?? settings.permissionMode === "full",
+        searchUnrestricted: () =>
+          runtimeRef?.pathUnrestricted ?? settings.permissionMode === "full",
       },
     );
     if (!spec) builtTools.push(...workflowToolsFor(() => runtimeRef, sessionId, activeMode));
@@ -1321,8 +1344,8 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
     const availableTools = [
       ...builtTools,
       ...plugins.flatMap((plugin) => plugin.extension.tools ?? []),
-      // 延迟工具网关本体（tool_search）随扩展走；它必须常驻，否则没人能检索延迟工具
-      ...(TOOL_SEARCH_EXTENSION.tools ?? []),
+      // 内置扩展（tool_search / codemode）的常驻工具：它们必须一直可被模型调用
+      ...BUILTIN_EXTENSIONS.flatMap((extension) => extension.tools ?? []),
     ];
     parentToolNames = availableTools
       .filter((tool) => !undelegatable.has(tool.name))
@@ -1346,7 +1369,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
         }),
       );
     for (const plugin of plugins) registry.install(plugin.extension);
-    registry.install(TOOL_SEARCH_EXTENSION);
+    for (const extension of BUILTIN_EXTENSIONS) registry.install(extension);
     const extension = defineExtension({
       name: `oint:${opened.conversationId}`,
       tools: builtTools.filter((tool) => tools.some((selected) => selected.name === tool.name)),
@@ -1394,7 +1417,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
           tools,
           extensions: [
             ...plugins.map((plugin) => plugin.extension),
-            TOOL_SEARCH_EXTENSION,
+            ...BUILTIN_EXTENSIONS,
             extension,
           ],
           cwd,

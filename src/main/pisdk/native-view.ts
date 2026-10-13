@@ -33,11 +33,11 @@ import { ApprovalDoc, detached, TodoDoc } from "./native-state";
 import { type NativeSubagent, SubagentsDoc } from "./native-subagents";
 import {
   emptyWorkflow,
-  readWorkflow,
   GoalDoc,
   PlanDoc,
-  WorkDoc,
   PlanExecutionDoc,
+  readWorkflow,
+  WorkDoc,
 } from "./workflow";
 
 export function usageTotals(ledger: UsageState | undefined): SessionTokenUsage {

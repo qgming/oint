@@ -1,5 +1,5 @@
 // Product behavior through the official durable scheduler, events and SQLite storage.
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -17,17 +17,19 @@ import {
   Harness,
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
+import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
 import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatAttachment } from "@/shared/contracts/attachment";
 import type { ChatEventEnvelope } from "@/shared/contracts/chat";
+import type { ChatPart } from "@/shared/contracts/session";
 import type { Settings } from "@/shared/contracts/settings";
 import { DEFAULT_WEB_SEARCH_SETTINGS } from "@/shared/contracts/web";
+import type { WorkflowState } from "@/shared/contracts/workflow";
 import type { ApprovalService } from "./approvals";
 import { readDocument } from "./durable-session";
 import { RunPolicyDoc } from "./execution-policy";
-import type { WorkflowState } from "@/shared/contracts/workflow";
 import { type ChatRuntime, createChatRuntime } from "./runtime";
 import { createSessionStore, type SessionStore } from "./session-store";
 import { createSubagentExtension, createSubagentRunner } from "./subagent-runner";
@@ -1106,6 +1108,31 @@ describe("native durable chat runtime", () => {
       expect(JSON.stringify(agent?.modelTools)).toContain("mcp__demo__call");
     });
   });
+
+  it("codemode：脚本在 QuickJS 沙箱里调用本会话工具（读文件）", async () => {
+    // codemode 本体按未知工具走审批（安全侧默认）；本用例聚焦沙箱行为，直接给完全访问
+    settings.permissionMode = "full";
+    await writeFile(path.join(directory, "code.txt"), "hello-code", "utf8");
+    faux.setResponses([
+      acknowledgeInput(),
+      toolResponse(
+        fauxToolCall(CODEMODE_TOOL_NAME, {
+          code: 'const r = await tools.read({ path: "code.txt" }); text(String(r));',
+        }),
+      ),
+      fauxAssistantMessage("done"),
+    ]);
+    await runtime.send(sessionId, "run a script");
+    const part = (await store.loadMessages(sessionId)).messages
+      .flatMap((message) => message.parts)
+      .find(
+        (candidate): candidate is Extract<ChatPart, { type: "tool-call" }> =>
+          candidate.type === "tool-call" && candidate.toolName === CODEMODE_TOOL_NAME,
+      );
+    expect(part?.status).toBe("done");
+    // 脚本的输出里能看到嵌套 read 的真实内容
+    expect(String(part?.result)).toContain("hello-code");
+  }, 60_000);
 
   it("persists messages, authoritative entry links and system instructions", async () => {
     let request: TranscriptContext | undefined;

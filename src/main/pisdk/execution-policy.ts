@@ -1,9 +1,10 @@
-import { defineDoc } from "@earendil-works/pi-durable";
-import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import type { JsonRepresentation } from "@earendil-works/chord";
+import { defineDoc } from "@earendil-works/pi-durable";
+import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import type { AgentMode } from "@/shared/contracts/common";
-import type { WorkContract } from "@/shared/contracts/workflow";
 import { WEB_READ_ONLY_TOOL_NAMES } from "@/shared/contracts/web";
+import type { WorkContract } from "@/shared/contracts/workflow";
 
 /** Each turn keeps its admitted permission ceiling, independent of next-turn choices. */
 export const RunPolicyDoc = defineDoc<
@@ -35,6 +36,9 @@ const effects: Readonly<Record<string, ToolEffect>> = {
   todo: "metadata",
   // 检索延迟工具只读本会话元数据：受限工作里也允许（否则受限会话摸不到 MCP 工具）
   [TOOL_SEARCH_TOOL_NAME]: "read",
+  // 代码模式本体不碰工作区（QuickJS 沙箱没有 fs/net）；能造成的影响由脚本里的嵌套调用
+  // 各自承担，而受限工作下可调用工具本就被过滤成只读档 —— 因此本体按 read 放行。
+  [CODEMODE_TOOL_NAME]: "read",
   ...Object.fromEntries(WEB_READ_ONLY_TOOL_NAMES.map((name) => [name, "read"])),
   ...Object.fromEntries(WORKFLOW_TOOL_NAMES.map((name) => [name, "metadata"])),
   Task: "delegate",
