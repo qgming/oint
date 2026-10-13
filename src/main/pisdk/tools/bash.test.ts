@@ -44,8 +44,7 @@ async function runBash(command: string, timeout?: number): Promise<BashOutcome> 
     );
     // 1.2.0：output 通常省略（流式输出就是内容）；给出时优先它。诊断 = api 诊断 + 结果诊断。
     const text =
-      result.output?.map((block) => (block.type === "text" ? block.text : "")).join("\n") ??
-      output;
+      result.output?.map((block) => (block.type === "text" ? block.text : "")).join("\n") ?? output;
     return {
       ok: true,
       text,

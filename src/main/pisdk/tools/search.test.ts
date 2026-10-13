@@ -333,7 +333,12 @@ describe("glob", () => {
     let unrestricted = false;
     // 先确认关着时挡住（与上面的围栏用例同一形状），再打开开关重试
     const blocked = textOf(
-      await runGlob(root, { pattern: "*.ts", path: path.dirname(outsideFile) }, [root], () => unrestricted),
+      await runGlob(
+        root,
+        { pattern: "*.ts", path: path.dirname(outsideFile) },
+        [root],
+        () => unrestricted,
+      ),
     );
     expect(blocked).toContain("Path outside the allowed workspace");
 

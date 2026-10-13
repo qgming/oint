@@ -38,7 +38,11 @@ export type BeforeToolResult = { arguments?: { [key: string]: JsonValue }; block
 export type PluginTextBlock = { type: "text"; text: string };
 export type PluginImageBlock = { type: "image"; data: string; mimeType: string };
 export type PluginContentBlock = PluginTextBlock | PluginImageBlock;
-export type PluginDiagnostic = { severity: "info" | "warn" | "error"; message: string; code?: string };
+export type PluginDiagnostic = {
+  severity: "info" | "warn" | "error";
+  message: string;
+  code?: string;
+};
 
 /**
  * 插件工具/钩子的返回值；与 pi-durable 1.2 的 `ToolExecutionResult` 结构一致
@@ -187,7 +191,11 @@ export const PluginAgent = remote("oint.plugin.agent", {
       state: { description: pluginAgentDescriptionSchema },
       methods: {
         execute: method(
-          Type.Object({ name: Type.String(), args: jsonObjectSchema, invocation: invocationSchema }),
+          Type.Object({
+            name: Type.String(),
+            args: jsonObjectSchema,
+            invocation: invocationSchema,
+          }),
           toolResultSchema,
         ),
         command: method(
@@ -199,7 +207,11 @@ export const PluginAgent = remote("oint.plugin.agent", {
           beforeToolResultSchema,
         ),
         afterTool: method(
-          Type.Object({ call: toolCallSchema, result: toolResultSchema, invocation: hookInvocationSchema }),
+          Type.Object({
+            call: toolCallSchema,
+            result: toolResultSchema,
+            invocation: hookInvocationSchema,
+          }),
           toolResultSchema,
         ),
       },

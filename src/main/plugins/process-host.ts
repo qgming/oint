@@ -62,9 +62,7 @@ function extensionName(source: PluginProcessSource): string {
 const DESCRIPTION_TIMEOUT_MS = 5000;
 
 /** 等到插件发布第一份描述（状态是 snapshot + delta，ready 后首个值可能还差一拍）。 */
-function firstDescription(
-  state: PluginProcess["description"],
-): Promise<PluginAgentDescription> {
+function firstDescription(state: PluginProcess["description"]): Promise<PluginAgentDescription> {
   const current = state.value;
   if (current !== undefined) return Promise.resolve(current);
   return new Promise((resolve, reject) => {
@@ -278,7 +276,9 @@ export function createPluginProcessHost(
         const entryPath = await resolvePluginEntry(source.dir, source.manifest);
         if (entryPath === undefined) throw new Error("插件没有 agent 入口");
         const signature = JSON.stringify([
-          createHash("sha256").update(await readFile(entryPath)).digest("hex"),
+          createHash("sha256")
+            .update(await readFile(entryPath))
+            .digest("hex"),
           source.manifest,
         ]);
         const previous = running.get(source.dir);

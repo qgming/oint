@@ -157,12 +157,13 @@ describe("session-stats 折叠", () => {
 });
 
 describe("上下文分解", () => {
-  it("文本估算与内核同口径：ceil(len/4)，空串为 0", () => {
-    // 这几条钉的是「不再自算」：早先本仓用 max(1, round(len/4))，
-    // 与内核的 ceil 在边界上差 1，且把空串算成 1（内核算 0）。
+  it("文本估算与内核同口径：ceil(len/3.5)，空串为 0", () => {
+    // 这几条钉的是「不再自算」：早先本仓用 max(1, round(len/4))，与内核的 ceil 在边界上差 1，
+    // 且把空串算成 1（内核算 0）。1.2.0 起内核把每 token 字符数从 4 收紧到 3.5，
+    // 本仓直接委托 estimateTextTokens，这里跟着内核口径钉边界值。
     expect(estimateTokens("")).toBe(0);
-    expect(estimateTokens("abcd")).toBe(1);
-    expect(estimateTokens("a".repeat(400))).toBe(100);
+    expect(estimateTokens("abcd")).toBe(2);
+    expect(estimateTokens("a".repeat(400))).toBe(115);
     // ceil 而非 round：5 字符是 2 个 token，不是 1
     expect(estimateTokens("abcde")).toBe(2);
   });
@@ -184,7 +185,8 @@ describe("上下文分解", () => {
     const serialized = JSON.stringify([
       { name: "read", description: "读文件", parameters: { type: "object", properties: {} } },
     ]);
-    expect(estimateToolsTokens(tools)).toBe(Math.ceil(serialized.length / 4));
+    // 1.2.0：内核的每 token 字符数为 3.5（原先 4）
+    expect(estimateToolsTokens(tools)).toBe(Math.ceil(serialized.length / 3.5));
   });
 
   it("schema 无法序列化时不抛错", () => {

@@ -5,8 +5,9 @@
 // 这里只做两件薄事：
 //  1. 把 Electron 的 postMessage/on("message")/on(exit|close) 适配成 IpcChannel；
 //  2. 留住控制消息通道（worker 的就绪/致命消息），供握手使用。
-import type { ParentPort, UtilityProcess } from "electron";
+
 import type { IpcChannel } from "@earendil-works/chord";
+import type { ParentPort, UtilityProcess } from "electron";
 
 /** 运行时无关的链路端口：两个平台适配都实现它。 */
 export interface RawLinkPort {
@@ -89,8 +90,7 @@ export function createMemoryPortPair(): [RawLinkPort, RawLinkPort] {
   const flush = (side: Side): void => {
     if (side.listeners.size === 0 || side.pending.length === 0) return;
     const queued = side.pending.splice(0);
-    for (const message of queued)
-      for (const listener of [...side.listeners]) listener(message);
+    for (const message of queued) for (const listener of [...side.listeners]) listener(message);
   };
   const make = (self: Side, peer: Side): RawLinkPort => ({
     get closed() {

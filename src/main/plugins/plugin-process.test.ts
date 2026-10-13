@@ -4,7 +4,14 @@
 //   - retire 保留在飞调用、拒绝新调用、结束即停；
 //   - 断开让未决调用兑现（拒绝）。
 // 子侧用内存端口 + 内存 facet（不落盘、不起进程），语义与 worker.ts 的子 host 相同。
-import { cell, createHost, type Ctx, type Draft, defineFacet, ipcLink } from "@earendil-works/chord";
+import {
+  type Ctx,
+  cell,
+  createHost,
+  type Draft,
+  defineFacet,
+  ipcLink,
+} from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryPortPair, toIpcChannel } from "./link";
@@ -98,7 +105,11 @@ const invoke = (
   process.invoke(
     (service, ctx) =>
       service.execute(
-        { name: "echo", args: {}, invocation: { callId: "c", taskId: "t", conversationId: "s", cwd: "" } },
+        {
+          name: "echo",
+          args: {},
+          invocation: { callId: "c", taskId: "t", conversationId: "s", cwd: "" },
+        },
         ctx,
       ),
     parent,

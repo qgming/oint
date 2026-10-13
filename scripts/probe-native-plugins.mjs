@@ -15,7 +15,7 @@ try {
   await build({
     configFile: false, logLevel: "warn", resolve: { alias: { "@": path.join(root, "src") } },
     build: { target: "node22", outDir: path.join(dir, "compiled"), emptyOutDir: false,
-      lib: { entry: { "plugin-worker": path.join(root, "src/main/plugins/worker.ts"), probe: path.join(root, "scripts/probe-native-plugins-entry.ts") }, formats: ["es"], fileName: (_format, name) => `${name}.js` },
+      lib: { entry: { "plugin-worker": path.join(root, "src/main/plugins/worker.ts"), "plugin-api": path.join(root, "src/main/plugins/plugin-api.ts"), probe: path.join(root, "scripts/probe-native-plugins-entry.ts") }, formats: ["es"], fileName: (_format, name) => `${name}.js` },
       rolldownOptions: { external: (id) => id === "electron" || id.startsWith("node:") || builtinModules.includes(id) || deps.some((name) => id === name || id.startsWith(`${name}/`)) },
     },
   });

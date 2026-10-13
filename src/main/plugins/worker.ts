@@ -6,34 +6,54 @@
 //   2. createHost({ name, loader: nodeLoader, upstream: ipcLink(port) }) 连上父进程；
 //   3. host.load([插件 agent 入口])（源码直载：.ts 由 Node 类型剥离执行）；
 //   4. 向父进程发就绪控制消息；链路关闭即收摊。
-import path from "node:path";
+
+import { mkdirSync } from "node:fs";
 import { registerHooks } from "node:module";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHost, ipcLink } from "@earendil-works/chord";
 import { nodeLoader } from "@earendil-works/chord/node";
 import { parentPortPort, toIpcChannel } from "./link";
 
-/** 供插件代码使用的裸模块说明符白名单：其余一律走宿主自己的解析（对插件目录多半会失败）。 */
-const HOSTED_SPECIFIERS = ["@earendil-works/chord", "typebox"];
-
-function hosted(specifier: string): boolean {
-  return HOSTED_SPECIFIERS.some(
-    (name) => specifier === name || specifier.startsWith(`${name}/`),
-  );
-}
+/** 供插件代码使用的裸模块说明符白名单：在注册 hook 之前全部预解析（见 installResolveHooks）。 */
+const HOSTED_SPECIFIERS = [
+  "@earendil-works/chord",
+  "@earendil-works/chord/node",
+  "@earendil-works/chord/context",
+  "@earendil-works/chord/delta",
+  "typebox",
+  "typebox/value",
+] as const;
 
 function installResolveHooks(): void {
-  const pluginApiUrl = new URL("./plugin-api.js", import.meta.url).href;
+  // 文件名走变量：`new URL("./plugin-api.js", import.meta.url)` 会被 Vite 当资产内联
+  //（.js 不在时它会落到同名 .ts 源文件，塞成 data:video/mp2t —— 运行时直接报未知模块格式）。
+  const pluginApiFile = "plugin-api.js";
+  const pluginApiUrl = new URL(pluginApiFile, import.meta.url).href;
+  // 必须在 registerHooks 之前解析：hook 里再调 import.meta.resolve 会重新走 hooks，自递归爆栈。
+  const hostedUrls = new Map<string, string>();
+  for (const specifier of HOSTED_SPECIFIERS) {
+    try {
+      hostedUrls.set(specifier, import.meta.resolve(specifier));
+    } catch {
+      // 解析不了就不映射；插件 import 它时会拿到 Node 的原生报错。
+    }
+  }
   registerHooks({
     resolve(specifier, context, nextResolve) {
       if (specifier === "oint:plugin") return { url: pluginApiUrl, shortCircuit: true };
-      if (hosted(specifier)) return { url: import.meta.resolve(specifier), shortCircuit: true };
+      const url = hostedUrls.get(specifier);
+      if (url !== undefined) return { url, shortCircuit: true };
       return nextResolve(specifier, context);
     },
   });
 }
 
-function fatal(parent: { postMessage(message: unknown): void }, stage: string, error: unknown): void {
+function fatal(
+  parent: { postMessage(message: unknown): void },
+  stage: string,
+  error: unknown,
+): void {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   try {
     parent.postMessage({ ointControl: "fatal", stage, message });
@@ -53,9 +73,17 @@ async function main(): Promise<void> {
       "插件进程缺少启动参数（OINT_PLUGIN_ENTRY / OINT_PLUGIN_HOST_NAME / parentPort）",
     );
   }
-  // 数据目录作为插件代码的 cwd 提示（与旧版一致，插件可用它放自己的临时文件）。
+  // 数据目录作为插件代码的 cwd（与旧版一致，插件可用它放自己的临时文件）。
+  // 目录可能还不存在（首次装插件）：先创建；失败也不致命 —— 别让 chdir 拖垮整个插件进程。
   const dataDir = process.env.OINT_PLUGIN_DATA_DIR;
-  if (dataDir !== undefined) process.chdir(dataDir);
+  if (dataDir !== undefined) {
+    try {
+      mkdirSync(dataDir, { recursive: true });
+      process.chdir(dataDir);
+    } catch (error) {
+      console.error(`[plugin-worker] 无法进入插件数据目录：${String(error)}`);
+    }
+  }
 
   installResolveHooks();
 

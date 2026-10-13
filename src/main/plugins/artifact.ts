@@ -2,8 +2,9 @@
 //   1. 旧格式明确报错（chord 1.0 的 dist/chord-facets.json 包在新运行时装不起来）；
 //   2. agent 入口存在且经真实路径校验（不许指向包外）；
 //   3. 返回入口的真实路径，交给子进程 nodeLoader 加载。
-import path from "node:path";
+
 import { stat } from "node:fs/promises";
+import path from "node:path";
 import { validateRealPathAccess } from "@/main/security/path-guard";
 import type { PluginPackage } from "@/shared/contracts/plugin";
 
@@ -11,7 +12,7 @@ export class LegacyPluginArtifactError extends Error {
   constructor() {
     super(
       "这是 chord 1.0 时代的旧格式插件包（含 dist/chord-facets.json 预构建产物）。" +
-        "新版本改为源码直载：请用新版格式重新打包（package.json 的 chord.facets.agent 指向 .ts 源码，并声明 \"type\": \"module\"）。",
+        '新版本改为源码直载：请用新版格式重新打包（package.json 的 chord.facets.agent 指向 .ts 源码，并声明 "type": "module"）。',
     );
     this.name = "LegacyPluginArtifactError";
   }
@@ -30,7 +31,8 @@ export async function resolvePluginEntry(
   metadata: PluginPackage,
 ): Promise<string | undefined> {
   if (!metadata.agentFacet) return undefined;
-  if (await isFile(path.join(dir, "dist", "chord-facets.json"))) throw new LegacyPluginArtifactError();
+  if (await isFile(path.join(dir, "dist", "chord-facets.json")))
+    throw new LegacyPluginArtifactError();
   const entry = path.join(dir, metadata.agentFacet);
   const access = await validateRealPathAccess(entry, [dir]);
   if (!access.ok) throw new Error(access.reason);

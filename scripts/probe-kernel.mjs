@@ -16,25 +16,70 @@ export async function probeKernel(load = (name) => import(name)) {
     const { BACKGROUND_CONTEXT: context } = await load("@earendil-works/chord/context");
     const { Harness, createRegistry } = await load("@earendil-works/pi-durable");
     const { createModels } = await load("@earendil-works/pi-ai/models");
-    await check("official plugin RPC and Chord loader", async () => {
-      const client = await load("@earendil-works/pi-client");
-      const server = await load("@earendil-works/pi-server");
-      const protocol = await load("@earendil-works/pi-protocol");
+    await check("chord host runtime (contracts, links, facet loader)", async () => {
       const chord = await load("@earendil-works/chord");
-      const loader = await load("@earendil-works/chord/node");
-      for (const api of [client.Client, client.createClientServiceTransport, server.Server,
-        chord.createFacetHost, chord.defineFacet, loader.createFacetBundleLoader]) {
-        if (typeof api !== "function") throw new Error("Missing official plugin API");
+      const node = await load("@earendil-works/chord/node");
+      for (const api of [
+        chord.createHost,
+        chord.defineFacet,
+        chord.remote,
+        chord.method,
+        chord.cell,
+        chord.ipcLink,
+        chord.memoryLinkPair,
+        node.nodeLoader,
+        node.createHostManager,
+        node.forkDriver,
+        node.childControl,
+        node.processLock,
+      ]) {
+        if (typeof api !== "function") throw new Error("Missing official chord host runtime API");
       }
-      const payload = new Uint8Array([1, 2, 3, 4]);
-      const frame = protocol.encodeFrame(payload);
-      const decoder = new protocol.FrameDecoder();
-      const messages = [...decoder.push(frame.subarray(0, 2)), ...decoder.push(frame.subarray(2))];
-      decoder.end();
-      if (messages.length !== 1 || !messages[0].every((value, index) => value === payload[index])) {
-        throw new Error("Native incremental byte framing failed");
+      const { Type } = await load("typebox");
+      const contract = chord.remote("probe.echo", {
+        version: 1,
+        input: Type.Object({}),
+        variants: {
+          default: {
+            state: { note: Type.String() },
+            methods: {
+              echo: chord.method(
+                Type.Object({ text: Type.String() }),
+                Type.Object({ text: Type.String() }),
+              ),
+            },
+          },
+        },
+      });
+      const [serverLink, clientLink] = chord.memoryLinkPair();
+      const server = chord.createHost({ name: "probe-server" });
+      const client = chord.createHost({ name: "probe-client", upstream: clientLink });
+      server.accept(serverLink, { principal: { host: "probe" }, kind: "host", name: "probe-client" });
+      const facet = chord.defineFacet((api) => {
+        api.serve(
+          contract,
+          (_input, _principal, self) => {
+            const state = self.state({ note: chord.cell(Type.String(), "ready") });
+            return {
+              kind: "default",
+              note: state.note,
+              echo: (args) => ({ text: `${args.text}:ack` }),
+            };
+          },
+          { eager: true },
+        );
+      });
+      try {
+        await client.load([{ ...facet, name: "probe" }]);
+        const handle = server.get(contract, {}, { at: "probe-client" });
+        const result = await handle.echo({ text: "probe" });
+        if (result.text !== "probe:ack") throw new Error(`RPC round trip failed: ${JSON.stringify(result)}`);
+        if (handle.status !== "live") throw new Error(`Handle not live: ${handle.status}`);
+      } finally {
+        await server.close();
+        await client.close();
       }
-      return "native Client/Server/protocol and facet loader imports, framed bytes";
+      return "host/accept/upstream + remote contract + facet round trip over a memory link";
     });
     await check("pi-ai model catalog", async () => {
       const all = await load("@earendil-works/pi-ai/providers/all");

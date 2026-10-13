@@ -16,11 +16,11 @@ const script = `
 import fs from "node:fs/promises";
 import path from "node:path";
 const appRoot = ${JSON.stringify(appRoot)};
-for (const name of ["pi-ai", "pi-durable", "pi-mcp", "chord", "pi-client", "pi-server", "pi-protocol"]) {
+for (const name of ["pi-ai", "pi-durable", "pi-mcp", "chord", "pi-codemode", "pi-telemetry"]) {
   const manifest = JSON.parse(await fs.readFile(path.join(appRoot, "node_modules", "@earendil-works", name, "package.json"), "utf8"));
-  if (manifest.version !== "1.0.0") throw new Error(name + " expected 1.0.0, got " + manifest.version);
+  if (manifest.version !== "1.2.0") throw new Error(name + " expected 1.2.0, got " + manifest.version);
 }
-for (const name of ["pi-coding-agent", "pi-tui"]) {
+for (const name of ["pi-client", "pi-server", "pi-protocol", "pi-coding-agent", "pi-tui"]) {
   const forbidden = path.join(appRoot, "node_modules", "@earendil-works", name, "package.json");
   await fs.access(forbidden).then(() => { throw new Error("Excluded CLI/TUI package: " + name); }, (error) => {
     if (error.code !== "ENOENT") throw error;

@@ -5,7 +5,7 @@
 //   - 描述（description）是句柄上的状态，订阅方式与旧 ReplicatedState 相同（snapshot + delta）；
 //   - 四个方法（execute/command/beforeTool/afterTool）直接调句柄，取消走 ctx.signal；
 //   - 就绪/致命通过链路上的控制消息（{ ointControl: "ready" | "fatal" }）握手。
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import {
   type Context,
   type Ctx,
@@ -15,11 +15,7 @@ import {
   type Link,
 } from "@earendil-works/chord";
 import { buildChildEnv } from "@/main/security/child-env";
-import {
-  type RawLinkPort,
-  toIpcChannel,
-  utilityProcessPort,
-} from "./link";
+import { type RawLinkPort, toIpcChannel, utilityProcessPort } from "./link";
 import { PLUGIN_HOST_PREFIX, PluginAgent } from "./plugin-api";
 
 export type PluginAgentHandle = Handle<typeof PluginAgent>;
@@ -82,7 +78,9 @@ function waitReady(channel: PluginAgentChannel): Promise<void> {
       const message = raw as ControlMessage;
       if (message?.ointControl === "ready") finish();
       else if (message?.ointControl === "fatal")
-        finish(new Error(`插件启动失败（${message.stage ?? "unknown"}）：${message.message ?? ""}`));
+        finish(
+          new Error(`插件启动失败（${message.stage ?? "unknown"}）：${message.message ?? ""}`),
+        );
     });
     channel.on("disconnect", onDisconnect);
   });
@@ -170,8 +168,7 @@ export const startPluginProcess: PluginProcessFactory = async (options) => {
     OINT_PLUGIN_HOST_NAME: hostName,
     OINT_PLUGIN_DATA_DIR: options.dataDir,
   };
-  const workerEntry =
-    options.workerEntry ?? fileURLToPath(new URL("./plugin-worker.js", import.meta.url));
+  const workerEntry = options.workerEntry ?? path.join(import.meta.dirname, "plugin-worker.js");
   const child = utilityProcess.fork(workerEntry, [], {
     cwd: options.pluginDir,
     env,

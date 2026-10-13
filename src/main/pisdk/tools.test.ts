@@ -120,21 +120,21 @@ describe("buildTools", () => {
    * 工具描述是**模型唯一的行为依据** —— 描述说错了，它会照着错的做。
    *
    * 两条曾经说反的话：
-   * - read 的描述写「read 只回一句类型说明，看不到图」，而内核 read 命中图片魔数时
-   *   会把图片整份 base64 返回（`read.js` 的图片分支，**没有任何字节上限**）。
-   *   于是模型被从唯一有 16 MiB 守卫的 read_image 支开，指向了唯一没有上限的那条路。
+   * - read 的描述写「read 只回一句类型说明，看不到图」；1.2.0 起原生 read 会在模型的
+   *   图片限制内直接返回图片块（超限则报错），read_image 则继续提供尺寸与元数据、
+   *   带 16 MiB 守卫。描述必须与这个分工一致。
    * - read_image 的描述承诺「大图会自动缩小」，而它**没有任何缩放实现**：
    *   超限时的实际行为是报错让模型自己去缩。模型按描述以为不必管，就卡住了。
    *
    * 这两条断言钉的是「描述不许声称本仓不做的行为」。
    */
-  it("read 只读文本，图片明确交给 read_image", () => {
+  it("read 原生支持图片块，read_image 提供尺寸与元数据", () => {
     const tools = buildTools();
     const read = tools.find((tool) => tool.name === TOOL_NAMES.read);
 
     expect(read?.description).toContain("read_image");
-    // 原生 read 只读文本，图片继续由应用的 read_image 工具负责
-    expect(read?.description).toContain("只读取文本");
+    // 1.2.0 起 read 在模型限制内直接返回图片块；read_image 负责尺寸与元数据
+    expect(read?.description).toContain("图片块");
     // 不能再出现那句与实现相反的话
     expect(read?.description).not.toContain("看不到图");
   });

@@ -110,6 +110,14 @@ describe("native request restart and durability", () => {
   it("failed decision persistence rejects the acknowledgement and leaves the card pending", async () => {
     class FailingStorage extends MemoryStorage {
       fail = false;
+      /**
+       * 1.2.0：存储异常让会话永久失败并**连带关闭存储**。本用例要做「尸检」
+       *（确认卡片上没有落下决策），而 MemoryStorage 关闭即丢数据、没有重开语义，
+       * 所以这里让 close 只保留可读视图 —— 生产上的「关闭后重开」语义不靠这个桩覆盖。
+       */
+      override async close(_context: Context): Promise<void> {
+        // 刻意不真正关闭：断言需要读原始存储。
+      }
       override commit(writes: readonly StorageWrite[], ctx: Context) {
         if (this.fail) return Promise.reject(new Error("disk write failed"));
         return super.commit(writes, ctx);
@@ -139,7 +147,12 @@ describe("native request restart and durability", () => {
     if (!card) throw new Error("Missing pending request");
     storage.fail = true;
     await expect(service.respond(card.id, "allow_once")).rejects.toThrow("disk write failed");
-    await expect(service.pending()).rejects.toThrow("poisoned");
+    // 1.2.0：任何存储异常都让会话永久失败（SessionFailed），后续调用一律拒绝、不再重试；
+    // 原始错误挂在这条失败错误的 cause 上。
+    await expect(service.pending()).rejects.toThrow("Session failed after a storage error");
+    await expect(service.pending()).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: "disk write failed" }),
+    });
     const document = await storage.findDocument(
       {
         kind: ApprovalDoc.definition.kind,

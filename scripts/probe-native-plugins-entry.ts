@@ -28,7 +28,7 @@ try {
   if (uuid?.replay !== "unsafe") throw new Error("UUID replay policy is unsafe");
   const pluginPid = app.getAppMetrics().find((metric) => `${metric.name ?? ""} ${metric.serviceName ?? ""}`.includes("dev.oint.toolkit"))?.pid;
   if (!pluginPid) throw new Error("Plugin utilityProcess was not present in Electron process metrics");
-  console.log(`PASS ${archive ? "packaged ASAR worker/dependencies + unpacked artifact" : "development worker"}: Electron utilityProcess → Pi Client/Server → Chord verified bundle → native Durable toolkit (4 tools)`);
+  console.log(`PASS ${archive ? "packaged ASAR worker/dependencies + unpacked artifact" : "development worker"}: Electron utilityProcess → Chord 1.2 host link (source-loaded facet) → native Durable toolkit (4 tools)`);
   host.stopAll();
   for (let i = 0; i < 30 && pluginPid && app.getAppMetrics().some((metric) => metric.pid === pluginPid); i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
   if (pluginPid && app.getAppMetrics().some((metric) => metric.pid === pluginPid)) throw new Error("Plugin utilityProcess did not exit after disposal");

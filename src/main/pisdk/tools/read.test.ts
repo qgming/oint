@@ -7,8 +7,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { ToolExecutionApi } from "@earendil-works/pi-durable";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createExecEnv } from "../exec-env";
 import { buildTools } from "../tools";
@@ -37,9 +37,7 @@ async function readText(params: {
   limit?: number;
 }): Promise<string> {
   const result = await runRead(params);
-  return (result.output ?? [])
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("\n");
+  return (result.output ?? []).map((block) => (block.type === "text" ? block.text : "")).join("\n");
 }
 
 beforeAll(async () => {

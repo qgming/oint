@@ -42,7 +42,7 @@ export function estimateToolsTokens(
   ).tokens;
 }
 
-/** 文本段估算：内核口径（`ceil(len/4)`，空串为 0） */
+/** 文本段估算：内核口径（`ceil(len/3.5)`，空串为 0；1.2.0 起每 token 3.5 字符） */
 export { estimateTextTokens as estimateTokens };
 
 /**

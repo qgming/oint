@@ -5,8 +5,8 @@ import { type Ctx, type MutableReplicatedState, replicatedState } from "@earendi
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createRegistry, type ToolExecutionApi, type ToolHooks } from "@earendil-works/pi-durable";
 import { describe, expect, it, vi } from "vitest";
-import { type PluginAgentDescription } from "./plugin-api";
 import { validatePluginManifest } from "./manifest";
+import type { PluginAgentDescription } from "./plugin-api";
 import type { PluginProcess } from "./plugin-process";
 import { createPluginProcessHost, type PluginProcessSource } from "./process-host";
 
