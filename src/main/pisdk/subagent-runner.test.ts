@@ -20,8 +20,8 @@ import {
 import { Type } from "typebox";
 import { afterEach, describe, expect, it } from "vitest";
 import { MAX_CONCURRENT_SUBAGENT_RUNS } from "@/shared/contracts/subagent";
-import { parseSessionAddress, SubagentsDoc } from "./native-subagents";
 import { RunPolicyDoc } from "./execution-policy";
+import { parseSessionAddress, SubagentsDoc } from "./native-subagents";
 import { createSessionStore, type SessionStore } from "./session-store";
 import {
   createSubagentExtension,

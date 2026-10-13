@@ -7,9 +7,9 @@ import {
   GoalDoc,
   PlanDoc,
   PlanExecutionDoc,
+  summarizeWorkflow,
   WorkDoc,
   WorkflowCallDoc,
-  summarizeWorkflow,
 } from "../workflow";
 
 export interface WorkflowToolOptions {

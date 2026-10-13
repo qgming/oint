@@ -109,9 +109,15 @@ export interface OintApi {
       sessionId: string,
       ref: import("./workflow").PlanExecutionRequest,
     ): Promise<import("./workflow").WorkflowResult>;
-    readPlan(sessionId: string, ref?: import("./workflow").PlanRef): Promise<import("./workflow").PlanState | null>;
+    readPlan(
+      sessionId: string,
+      ref?: import("./workflow").PlanRef,
+    ): Promise<import("./workflow").PlanState | null>;
     planHistory(sessionId: string): Promise<import("./workflow").PlanState[]>;
-    archivePlan(sessionId: string, ref: import("./workflow").PlanRef): Promise<import("./workflow").WorkflowResult>;
+    archivePlan(
+      sessionId: string,
+      ref: import("./workflow").PlanRef,
+    ): Promise<import("./workflow").WorkflowResult>;
     send(
       sessionId: string,
       text: string,

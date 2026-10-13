@@ -127,7 +127,9 @@ function stripWrappers(raw: string): string | null {
       const title = (parsed as { title?: unknown }).title;
       if (typeof title !== "string" || title.trim() === "") return null;
       text = title.trim();
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   } else {
     const fromJson = titleFromJson(text);
     if (fromJson !== null) text = fromJson;

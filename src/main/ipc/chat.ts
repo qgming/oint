@@ -25,12 +25,26 @@ export function registerChatIpc(): void {
   handle(
     IPC.chat.startPlan,
     "开始计划",
-    async (request: { sessionId: string; ref: import("@/shared/contracts/workflow").PlanExecutionRequest }) =>
-      getChatRuntime().startPlan(request.sessionId, request.ref),
+    async (request: {
+      sessionId: string;
+      ref: import("@/shared/contracts/workflow").PlanExecutionRequest;
+    }) => getChatRuntime().startPlan(request.sessionId, request.ref),
   );
-  handle(IPC.chat.readPlan, "读取计划", async (request: { sessionId: string; ref?: import("@/shared/contracts/workflow").PlanRef }) => getChatRuntime().readPlan(request.sessionId, request.ref));
-  handle(IPC.chat.planHistory, "读取计划历史", async (request: { sessionId: string }) => getChatRuntime().planHistory(request.sessionId));
-  handle(IPC.chat.archivePlan, "归档计划", async (request: { sessionId: string; ref: import("@/shared/contracts/workflow").PlanRef }) => getChatRuntime().archivePlan(request.sessionId, request.ref));
+  handle(
+    IPC.chat.readPlan,
+    "读取计划",
+    async (request: { sessionId: string; ref?: import("@/shared/contracts/workflow").PlanRef }) =>
+      getChatRuntime().readPlan(request.sessionId, request.ref),
+  );
+  handle(IPC.chat.planHistory, "读取计划历史", async (request: { sessionId: string }) =>
+    getChatRuntime().planHistory(request.sessionId),
+  );
+  handle(
+    IPC.chat.archivePlan,
+    "归档计划",
+    async (request: { sessionId: string; ref: import("@/shared/contracts/workflow").PlanRef }) =>
+      getChatRuntime().archivePlan(request.sessionId, request.ref),
+  );
   handle(
     IPC.chat.send,
     "发送消息",

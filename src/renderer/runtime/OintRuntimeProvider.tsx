@@ -156,9 +156,7 @@ export function OintRuntimeProvider({
           await useChatStore.getState().createSession();
           targetSessionId = useChatStore.getState().activeSessionId;
         }
-        await useChatStore
-          .getState()
-          .send(text, attachments, targetSessionId);
+        await useChatStore.getState().send(text, attachments, targetSessionId);
       } catch (error) {
         const draft = {
           text: appendMessageToText(message),

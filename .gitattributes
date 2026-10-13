@@ -1,0 +1,4 @@
+# 文本文件统一 LF：与 Biome 的 formatter.lineEnding 默认值一致，
+# 避免 Windows 上 core.autocrlf=true 检出为 CRLF 后 lint 全红。
+# 二进制文件由 Git 的自动检测排除（text=auto）。
+* text=auto eol=lf

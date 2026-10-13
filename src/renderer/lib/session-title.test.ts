@@ -29,6 +29,6 @@ describe("sessionDisplayTitle", () => {
         [{ ...messages[0]!, parts: [{ type: "text", text: "😀".repeat(41) }] }],
         "",
       ),
-    ).toBe("😀".repeat(40) + "…");
+    ).toBe(`${"😀".repeat(40)}…`);
   });
 });

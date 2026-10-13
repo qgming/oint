@@ -50,6 +50,14 @@
   },
   "overrides": [
     {
+      "includes": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" }
+        }
+      }
+    },
+    {
       "includes": ["src/index.css"],
       "formatter": { "enabled": false },
       "linter": {

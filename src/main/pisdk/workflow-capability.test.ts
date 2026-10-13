@@ -1,6 +1,7 @@
-import { UserEntry, type ToolRegistration } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
+import { type ToolRegistration, UserEntry } from "@earendil-works/pi-durable";
 import { afterEach, describe, expect, it } from "vitest";
+import { intersectWork, toolAllowedByWork, workAllowsEffects } from "./execution-policy";
 import { openNativeStateTest } from "./native-state-test";
 import { createWorkflowTools } from "./tools/workflow";
 import {
@@ -15,7 +16,6 @@ import {
   reservePlanExecution,
   WorkDoc,
 } from "./workflow";
-import { intersectWork, toolAllowedByWork, workAllowsEffects } from "./execution-policy";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {

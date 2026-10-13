@@ -1995,9 +1995,13 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
             signal.throwIfAborted();
           },
         );
-        if (!admitted.ok || submissionId === undefined)
+        const admittedSubmission =
+          admitted.ok && submissionId !== undefined
+            ? await runtime.harness.submission(submissionId, BACKGROUND_CONTEXT)
+            : undefined;
+        if (admittedSubmission === undefined)
           throw new Error("Plan admission changed before execution");
-        submission = (await runtime.harness.submission(submissionId, BACKGROUND_CONTEXT))!;
+        submission = admittedSubmission;
         runtime.harness.resume();
       } else {
         submission = await runtime.conversation.submit(

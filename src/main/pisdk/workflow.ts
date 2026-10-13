@@ -282,6 +282,7 @@ export async function archivePlan(
   }, BACKGROUND_CONTEXT);
 }
 export type { PlanExecutionRequest } from "@/shared/contracts/workflow";
+
 import type { PlanExecutionRequest } from "@/shared/contracts/workflow";
 export type PlanExecutionResult = WorkflowResult & { receipt?: PlanExecutionReceipt };
 export async function reservePlanExecution(
@@ -425,7 +426,7 @@ export async function completePlanExecution(
   await harness.commit(async (tx) => {
     const doc = await tx.doc(PlanExecutionDoc, conversationId);
     const receipt = doc.receipts[requestId];
-    if (!receipt || receipt.status !== "admitted" || receipt.finished) return;
+    if (receipt?.status !== "admitted" || receipt.finished) return;
     receipt.finished = true;
     doc.revision += 1;
   }, BACKGROUND_CONTEXT);

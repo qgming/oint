@@ -16,8 +16,8 @@ import {
   type SubagentEventEnvelope,
   type SubagentRun,
 } from "@/shared/contracts/subagent";
-import { detached } from "./native-state";
 import { RunPolicyDoc } from "./execution-policy";
+import { detached } from "./native-state";
 import { childSessionId, SubagentsDoc } from "./native-subagents";
 import type { SubagentStartRequest } from "./tools/subagent";
 
