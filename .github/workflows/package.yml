@@ -77,16 +77,21 @@ jobs:
     needs: package
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
+      - name: Extract release notes
+        run: node scripts/release-notes.mjs "$GITHUB_REF_NAME" > release-notes.md
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          generate_release_notes: true
+          body_path: release-notes.md
           draft: false
           prerelease: false
