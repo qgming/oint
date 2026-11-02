@@ -27,17 +27,17 @@ jobs:
         include:
           - name: Windows x64
             os: windows-latest
-            command: npx electron-builder --win nsis --x64
+            command: npx electron-builder --win nsis --x64 --publish never
             artifacts: |
               release/*.exe
           - name: macOS arm64
             os: macos-latest
-            command: npx electron-builder --mac zip --arm64
+            command: npx electron-builder --mac zip --arm64 --publish never
             artifacts: |
               release/*.zip
           - name: Linux x64
             os: ubuntu-latest
-            command: npx electron-builder --linux AppImage deb rpm tar.gz --x64
+            command: npx electron-builder --linux AppImage deb rpm tar.gz --x64 --publish never
             artifacts: |
               release/*.AppImage
               release/*.deb
