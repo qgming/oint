@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { type Ctx, type MutableReplicatedState, replicatedState } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createRegistry, type ToolExecutionApi, type ToolHooks } from "@earendil-works/pi-durable";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { validatePluginManifest } from "./manifest";
 import type { PluginAgentDescription } from "./plugin-api";
 import type { PluginProcess } from "./plugin-process";
@@ -51,6 +52,45 @@ function process(
   return Object.assign(fake, { service });
 }
 describe("native plugin extension publication", () => {
+  it("reloads when an imported helper changes, not only the agent entry", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "oint-plugin-reload-"));
+    onTestFinished(() => rm(dir, { recursive: true, force: true }));
+    const template = JSON.parse(
+      await readFile(
+        path.resolve(import.meta.dirname, "../../../resources/plugins/toolkit/package.json"),
+        "utf8",
+      ),
+    );
+    await writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({
+        ...template,
+        name: "dev.oint.reload-fixture",
+        chord: { facets: { agent: "./agent.ts" } },
+      }),
+    );
+    await writeFile(
+      path.join(dir, "agent.ts"),
+      'import { value } from "./helper.ts";\nexport default value;\n',
+    );
+    await writeFile(path.join(dir, "helper.ts"), 'export const value = "one";\n');
+    const result = validatePluginManifest(
+      JSON.parse(await readFile(path.join(dir, "package.json"), "utf8")),
+    );
+    if (!result.ok) throw new Error("fixture manifest");
+    const source: PluginProcessSource = { id: result.manifest.id, dir, manifest: result.manifest };
+
+    const one = process("one");
+    const two = process("two");
+    const start = vi.fn().mockResolvedValueOnce(one).mockResolvedValueOnce(two);
+    const host = createPluginProcessHost({ start });
+    await host.sync([source]);
+    await writeFile(path.join(dir, "helper.ts"), 'export const value = "two";\n');
+    await host.sync([source]);
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(one.retire).toHaveBeenCalledOnce();
+    host.stopAll();
+  });
   it("registers real native sections when the source hash begins with a digit", async () => {
     const initial = await source();
     expect(createHash("sha256").update(initial.id).digest("hex")).toMatch(/^[0-9]/);

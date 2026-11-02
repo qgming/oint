@@ -107,6 +107,14 @@ async function main(): Promise<void> {
   channel.on("disconnect", () => {
     void shutdown(0);
   });
+  // 父进程的强制结束在 POSIX 上是 SIGTERM；给 dispose 一次收尾机会，
+  // 未决的 durable 写入不会被硬杀截断。Windows 由父进程的延迟 kill 兜底。
+  process.once("SIGTERM", () => {
+    void shutdown(0);
+  });
+  process.once("SIGINT", () => {
+    void shutdown(0);
+  });
 
   try {
     await host.load([pathToFileURL(path.isAbsolute(entry) ? entry : path.resolve(entry)).href]);

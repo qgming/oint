@@ -61,10 +61,12 @@ interface ControlMessage {
 function waitReady(channel: PluginAgentChannel): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let offControl: (() => void) | undefined;
     const finish = (error?: Error): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      offControl?.();
       channel.off("disconnect", onDisconnect);
       if (error) reject(error);
       else resolve();
@@ -74,7 +76,8 @@ function waitReady(channel: PluginAgentChannel): Promise<void> {
       READY_TIMEOUT_MS,
     );
     const onDisconnect = (): void => finish(new Error("插件进程连接已断开"));
-    channel.onControl((raw) => {
+    channel.on("disconnect", onDisconnect);
+    const unsubscribe = channel.onControl((raw) => {
       const message = raw as ControlMessage;
       if (message?.ointControl === "ready") finish();
       else if (message?.ointControl === "fatal")
@@ -82,7 +85,9 @@ function waitReady(channel: PluginAgentChannel): Promise<void> {
           new Error(`插件启动失败（${message.stage ?? "unknown"}）：${message.message ?? ""}`),
         );
     });
-    channel.on("disconnect", onDisconnect);
+    // onControl 会同步 flush 已排队的消息；若已经 finish，这里需要补一次退订。
+    offControl = unsubscribe;
+    if (settled) offControl();
   });
 }
 
@@ -181,13 +186,32 @@ export const startPluginProcess: PluginProcessFactory = async (options) => {
   });
   child.stdout?.resume();
   const port: RawLinkPort = utilityProcessPort(child);
+  let exited = false;
+  let killTimer: NodeJS.Timeout | undefined;
+  child.once("exit", () => {
+    exited = true;
+    if (killTimer !== undefined) clearTimeout(killTimer);
+  });
+  /**
+   * 先让子进程收到链路关闭并 dispose，再强制结束。
+   *
+   * 直接 kill 会把正在收尾的 durable 写入/外部资源截断；但也不能无限等 ——
+   * 卡死的插件必须在超时后回收。
+   */
+  const kill = (): void => {
+    if (exited || killTimer !== undefined) return;
+    killTimer = setTimeout(() => {
+      if (!exited) port.kill();
+    }, 1500);
+    killTimer.unref?.();
+  };
   try {
     return await attachPluginProcess({
       host: options.host,
       port,
       hostName,
       onExit: (message) => options.onExit(`${message}${stderr ? `: ${stderr}` : ""}`),
-      kill: () => port.kill(),
+      kill,
     });
   } catch (error) {
     port.kill();

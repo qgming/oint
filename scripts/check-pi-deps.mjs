@@ -1,7 +1,8 @@
 // Keep the desktop dependency graph on the approved native ecosystem, fail closed.
 //
 // 1.2.0 起 pi-client / pi-protocol / pi-server 不再发布（chord 1.2.0 已删除旧运行时）；
-// pi-codemode 与 pi-telemetry 是 pi-durable / pi-ai 的传递依赖，只出现在 lock 里。
+// pi-telemetry 是 pi-durable / pi-ai 的传递依赖，只出现在 lock 里；pi-codemode 被主进程
+// 直接 import（codemode worker 的打包布局要求它作为直接依赖被 externalize）。
 import { readFile } from "node:fs/promises";
 
 /** 核准的全家桶与精确版本；任何不在表内的 @earendil-works/* 都视为错误。 */
@@ -18,6 +19,7 @@ const APPROVED = {
 const DIRECT = [
   "@earendil-works/chord",
   "@earendil-works/pi-ai",
+  "@earendil-works/pi-codemode",
   "@earendil-works/pi-durable",
   "@earendil-works/pi-mcp",
 ];

@@ -263,11 +263,23 @@ export function projectConversationView(
         compactionFailure.reason === "threshold" || compactionFailure.reason === "overflow"
           ? compactionFailure.reason
           : "manual";
+      // 失败任务可能没有产出 pi.compaction 条目；不能沿用上一次成功压缩的时间。
+      const failureRecord =
+        nativeCompaction !== undefined &&
+        String(nativeCompaction.id) === String(compactionFailure.taskId)
+          ? nativeCompaction
+          : undefined;
+      const failedAt =
+        failureRecord?.endedAt ??
+        failureRecord?.startedAt ??
+        messages.at(-1)?.createdAt ??
+        createdAt;
       compaction = {
         ...compaction,
         phase: "failed",
         reason: failedReason,
-        endedAt: compaction.endedAt ?? timestamp,
+        startedAt: failureRecord?.startedAt ?? failedAt,
+        endedAt: failedAt,
         error: compactionFailure.error,
       };
     }

@@ -13,6 +13,7 @@ import {
   defineExtension,
   defineTool,
   Harness,
+  LiveDoc,
   MemoryStorage,
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
@@ -542,5 +543,32 @@ describe("committed native conversation projection", () => {
     expect(f.view.snapshot.state.running).toBe(false);
     expect(f.view.snapshot.state.messages.some((message) => message.status === "error")).toBe(true);
     expect(f.view.snapshot.state.compaction?.phase).toBe("cancelled");
+  });
+  it("projects an unresolved compaction failure over the last successful compaction time", async () => {
+    const f = await fixture();
+    await f.conversation.commit(
+      (tx) =>
+        tx.appendEntry(f.conversation.id, {
+          kind: "pi.compaction",
+          head: "self",
+          model: [{ role: "user", content: "older summary", timestamp: 9 }],
+        }),
+      context,
+    );
+    await f.conversation.commit(async (tx) => {
+      const live = await tx.doc(LiveDoc, f.conversation.id);
+      live.compactionFailure = {
+        taskId: "failed-compaction",
+        reason: "manual",
+        error: "summarizer failed",
+      } as never;
+    }, context);
+    await f.view.flush();
+    const compaction = f.view.snapshot.state.compaction;
+    expect(compaction?.phase).toBe("failed");
+    expect(compaction?.error).toBe("summarizer failed");
+    // 失败没有产出 pi.compaction 条目；不能沿用上一次成功压缩的时间（9）。
+    expect(compaction?.endedAt).toBe(1);
+    expect(compaction?.startedAt).toBe(1);
   });
 });

@@ -1,9 +1,11 @@
 // 会话运行时：原生 pi-durable Harness / Conversation 与应用交互服务。
 
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import type { Message as AgentMessage } from "@earendil-works/pi-ai";
 import {
@@ -177,6 +179,29 @@ import {
 const TOOL_SEARCH_EXTENSION = createToolSearchExtension();
 
 /**
+ * 打包后 worker_threads 无法从 app.asar 里加载 worker 脚本（Electron 的 asar 支持
+ * 不覆盖 worker 的模块加载）。electron-builder 把 pi-codemode 解包到
+ * app.asar.unpacked；这里显式指向真实文件。开发期返回 undefined，让包自己按
+ * import.meta.url 找 node_modules 里的 worker。
+ */
+function codemodeWorkerUrl(): URL | undefined {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const defaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp;
+  if (resourcesPath === undefined || defaultApp === true) return undefined;
+  const worker = path.join(
+    resourcesPath,
+    "app.asar.unpacked",
+    "node_modules",
+    "@earendil-works",
+    "pi-codemode",
+    "dist",
+    "runtime",
+    "worker.js",
+  );
+  return existsSync(worker) ? pathToFileURL(worker) : undefined;
+}
+
+/**
  * codemode（pi-durable 的代码模式）：模型写 JavaScript，在 QuickJS（WASM）沙箱里把本会话的
  * 工具当函数调用 —— 脚本没有文件系统、网络、require，唯一能力就是 `tools.*`。
  * - 沙箱跨会话共享一个实例（每次执行起一个 worker 线程，工具按次注入）；
@@ -184,9 +209,11 @@ const TOOL_SEARCH_EXTENSION = createToolSearchExtension();
  * - `models: false`：v1 不给脚本 `models.*`（避免脚本触发隐藏的模型花费）；
  * - 沙箱参数刻意保守：堆上限 256 MiB。
  */
+const CODE_MODE_WORKER_URL = codemodeWorkerUrl();
 const CODE_MODE_SANDBOX = new CodemodeSandbox({
   timeoutMs: 600_000,
   memoryLimitBytes: 256 * 1024 * 1024,
+  ...(CODE_MODE_WORKER_URL === undefined ? {} : { workerUrl: CODE_MODE_WORKER_URL }),
 });
 const CODE_MODE_EXTENSION = createCodemodeExtension({
   sandbox: CODE_MODE_SANDBOX,
@@ -196,12 +223,9 @@ const CODE_MODE_EXTENSION = createCodemodeExtension({
 /** 应用自带的常驻扩展：延迟工具网关 + 代码模式（sections/工具都要进各装配点）。 */
 const BUILTIN_EXTENSIONS = [TOOL_SEARCH_EXTENSION, CODE_MODE_EXTENSION];
 
-/** 估算「实际会进请求体」的工具表：延迟工具不算，内置扩展自己带的和 tool_search 要算。 */
+/** 估算「实际会进请求体」的工具表：延迟工具不算；内置扩展已包含在入参里，不再重复追加。 */
 function offeredToolsForEstimate(registrations: readonly ToolRegistration[]): ToolRegistration[] {
-  return [
-    ...registrations.filter((tool) => tool.deferred !== true),
-    ...BUILTIN_EXTENSIONS.flatMap((extension) => extension.tools ?? []),
-  ];
+  return registrations.filter((tool) => tool.deferred !== true);
 }
 
 export interface ChatRuntimeDeps {
@@ -1010,7 +1034,7 @@ export function createChatRuntime(deps: ChatRuntimeDeps): ChatRuntime {
        */
       runtime.contextBreakdown = {
         ...runtime.contextBreakdown,
-        toolsTokens: estimateToolsTokens(offeredToolsForEstimate(nextTools)),
+        toolsTokens: estimateToolsTokens(offeredToolsForEstimate(selected)),
       };
     } catch (error) {
       if (forNewTurn) throw error;

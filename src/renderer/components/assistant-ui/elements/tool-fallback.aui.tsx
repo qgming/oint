@@ -96,8 +96,23 @@ const formatToolDuration = (ms: number) => {
   return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
 };
 
-function ToolFallbackDuration({ className, ...props }: React.ComponentProps<"span">) {
-  const elapsedMs = useToolCallElapsed();
+/** 历史工具调用的耗时：live run 的起止缺失时，用内核对这次执行的测量值兜底。 */
+function toolDurationMs(
+  providerMetadata: ToolCallMessagePartProps["providerMetadata"],
+): number | undefined {
+  const oint = providerMetadata?.oint;
+  if (typeof oint !== "object" || oint === null) return undefined;
+  const value = (oint as Record<string, unknown>).durationMs;
+  return typeof value === "number" && value > 0 ? value : undefined;
+}
+
+function ToolFallbackDuration({
+  durationMs,
+  className,
+  ...props
+}: React.ComponentProps<"span"> & { durationMs?: number }) {
+  const liveElapsedMs = useToolCallElapsed();
+  const elapsedMs = liveElapsedMs ?? durationMs;
   if (elapsedMs === undefined) return null;
 
   return (
@@ -117,11 +132,13 @@ function ToolFallbackDuration({ className, ...props }: React.ComponentProps<"spa
 function ToolFallbackTrigger({
   toolName,
   status,
+  durationMs,
   className,
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
   toolName: string;
   status?: ToolCallMessagePartStatus;
+  durationMs?: number;
 }) {
   const statusType = status?.type ?? "complete";
   const isRunning = statusType === "running";
@@ -157,7 +174,7 @@ function ToolFallbackTrigger({
       >
         {label}: <b>{toolName}</b>
       </span>
-      <ToolFallbackDuration />
+      <ToolFallbackDuration durationMs={durationMs} />
       <ChevronDownIcon
         data-slot="tool-fallback-trigger-chevron"
         className={cn(
@@ -613,6 +630,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   interrupt,
   approval,
   respondToApproval,
+  providerMetadata,
 }) => {
   const isCancelled = status?.type === "incomplete" && status.reason === "cancelled";
   const isRequiresAction = status?.type === "requires-action";
@@ -628,7 +646,11 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 
   return (
     <ToolFallbackRoot open={open} onOpenChange={setOpen}>
-      <ToolFallbackTrigger toolName={toolName} status={status} />
+      <ToolFallbackTrigger
+        toolName={toolName}
+        status={status}
+        durationMs={toolDurationMs(providerMetadata)}
+      />
       <ToolFallbackContent>
         <ToolFallbackError status={status} />
         <ToolFallbackArgs argsText={argsText} className={cn(isCancelled && "opacity-60")} />

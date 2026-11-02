@@ -28,6 +28,10 @@ files:
 asarUnpack:
   - "**/node_modules/@lydell/node-pty*/**"
   - "**/*.node"
+  # codemode 的 worker 在 worker_threads 里加载，而 Electron 的 asar 支持不覆盖
+  # worker 的模块加载。整个包解到 app.asar.unpacked，runtime.ts 会显式把 workerUrl
+  # 指到解包后的 dist/runtime/worker.js。
+  - "**/node_modules/@earendil-works/pi-codemode/**"
   # 内置技能整个拆出 asar。
   #
   # 为什么必须拆：**外部进程读不了 asar 里的文件**。

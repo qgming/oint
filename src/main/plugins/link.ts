@@ -187,7 +187,13 @@ export function toIpcChannel(port: RawLinkPort): IpcChannel & {
     },
   };
   return {
-    ...channel,
+    // 不能展开 channel：`connected` 是 getter，展开会在构造时把值固化成常量。
+    get connected(): boolean {
+      return channel.connected;
+    },
+    send: channel.send,
+    on: channel.on,
+    off: channel.off,
     onControl(listener) {
       control.add(listener);
       flush();

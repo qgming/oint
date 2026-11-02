@@ -106,7 +106,9 @@ function toThreadPart(part: ChatPart, resolveChild?: ChildMessageResolver): Thre
          * 它同样不能进 artifact（那会随 pi 的 toolResult 条目落盘，每截一张图就多存一份
          * base64），而渲染层要的只是「点开详情时能看见那张图」。
          */
-        ...(part.partialOutput === undefined && part.images === undefined
+        ...(part.partialOutput === undefined &&
+        part.images === undefined &&
+        part.durationMs === undefined
           ? {}
           : {
               providerMetadata: {
@@ -115,6 +117,8 @@ function toThreadPart(part: ChatPart, resolveChild?: ChildMessageResolver): Thre
                     ? {}
                     : { partialOutput: part.partialOutput }),
                   ...(part.images === undefined ? {} : { images: part.images }),
+                  // 历史回读没有 run 起止，工具的权威耗时只能来自内核落盘的 durationMs
+                  ...(part.durationMs === undefined ? {} : { durationMs: part.durationMs }),
                 },
               },
             }),

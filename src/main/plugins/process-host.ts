@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { createHost, type Host, type JsonValue } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -51,6 +51,34 @@ interface Running {
 
 function key(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
+/**
+ * 插件源码树的签名：入口文件和它 import 的每个文件都要算进去。
+ *
+ * 只哈希 agent 入口会让「改了入口引用的 helper」被当成没变 —— reconcile 保留旧进程，
+ * 应用继续跑旧代码。目录里的 node_modules / .git 不参与（它们不是插件源码）。
+ */
+async function pluginSourceSignature(dir: string): Promise<string> {
+  const hash = createHash("sha256");
+  async function walk(current: string): Promise<void> {
+    const entries = await readdir(current, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (entry.name === "node_modules" || entry.name === ".git") continue;
+      const full = path.join(current, entry.name);
+      const info = entry.isSymbolicLink() ? await stat(full) : entry;
+      if (info.isDirectory()) {
+        hash.update(`d:${path.relative(dir, full)}\0`);
+        await walk(full);
+      } else if (info.isFile()) {
+        hash.update(`f:${path.relative(dir, full)}\0`);
+        hash.update(await readFile(full));
+      }
+    }
+  }
+  await walk(dir);
+  return hash.digest("hex");
 }
 export function pluginToolName(pluginId: string, tool: string): string {
   return `plugin_${key(pluginId)}_${tool}`;
@@ -276,9 +304,7 @@ export function createPluginProcessHost(
         const entryPath = await resolvePluginEntry(source.dir, source.manifest);
         if (entryPath === undefined) throw new Error("插件没有 agent 入口");
         const signature = JSON.stringify([
-          createHash("sha256")
-            .update(await readFile(entryPath))
-            .digest("hex"),
+          await pluginSourceSignature(source.dir),
           source.manifest,
         ]);
         const previous = running.get(source.dir);

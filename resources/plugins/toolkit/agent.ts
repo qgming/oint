@@ -161,7 +161,13 @@ function runTime(args) {
   return { text: describeTime(date) };
 }
 
-const HANDLERS = { hash: runHash, encode: runEncode, uuid: runUuid, time: runTime };
+// 无原型表：工具名来自模型输入，`toString` / `__proto__` 这类名字不能命中原型链。
+const HANDLERS = Object.assign(Object.create(null), {
+  hash: runHash,
+  encode: runEncode,
+  uuid: runUuid,
+  time: runTime,
+});
 
 /** 声明里的 replay 档位：只读工具可重放，依赖外部状态的不可。 */
 function replayOf(name) {
