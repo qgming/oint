@@ -522,8 +522,10 @@ export function deriveRulePattern(
   if (toolName === TOOL_NAMES.write || toolName === TOOL_NAMES.edit) {
     const target = typeof args.path === "string" ? args.path.trim() : "";
     if (target === "") return undefined;
-    // 绝对路径的首段是盘符/根下的第一层（Users、home、tmp…），作为授权范围没有意义
-    if (path.isAbsolute(target)) return undefined;
+    // 绝对路径的首段是盘符/根下的第一层（Users、home、tmp…），作为授权范围没有意义。
+    // 同时用 win32 判断：模型在 POSIX 上也可能给出 `D:\...`，`path.isAbsolute` 在 Linux
+    // 会把它当成相对路径，进而把盘符下的首段（`dev`）当作授权范围。
+    if (path.isAbsolute(target) || path.win32.isAbsolute(target)) return undefined;
     // `./src/a.ts` 的首段是 `.` —— 同样没有授权意义，去掉前导 `./` 再取
     const normalized = target.replace(/^\.[\\/]+/, "");
     return normalized

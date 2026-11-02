@@ -11,6 +11,7 @@
 //   4. **导航白名单必须逐字比对**——曾经写成 `startsWith("file://")`，
 //      于是打包后任何本地 HTML 都能把特权窗口导航走（且目标仍带 preload 桥）。
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy, isSelfUrl } from "./window";
 
@@ -121,13 +122,16 @@ describe("buildContentSecurityPolicy", () => {
  * 于是任意本地 HTML 都能拿到 window.oint。
  */
 describe("isSelfUrl（主窗口导航白名单）", () => {
-  const DIST = path.join("D:", "app", "resources", "app", "dist");
+  // 用当前平台的绝对路径构造 dist：`path.join("D:", ...)` 在 POSIX 上仍是相对路径，
+  // 会让「放行自己的页面」这条正向用例错误地失败。
+  const DIST = path.resolve("app", "resources", "app", "dist");
+  const DIST_URL = pathToFileURL(DIST).href;
   const prod = { distDir: DIST };
 
   describe("打包环境", () => {
     it("放行应用自己的入口页面与 dist 内的资源", () => {
-      const index = `file:///${DIST.replace(/\\/g, "/")}/index.html`;
-      const asset = `file:///${DIST.replace(/\\/g, "/")}/assets/index-abc123.js`;
+      const index = `${DIST_URL}/index.html`;
+      const asset = `${DIST_URL}/assets/index-abc123.js`;
       expect(isSelfUrl(index, prod)).toBe(true);
       expect(isSelfUrl(asset, prod)).toBe(true);
     });
@@ -137,9 +141,9 @@ describe("isSelfUrl（主窗口导航白名单）", () => {
       expect(isSelfUrl("file:///C:/Users/victim/evil.html", prod)).toBe(false);
       expect(isSelfUrl("file:///C:/Users/victim/AppData/Roaming/x.html", prod)).toBe(false);
       // dist 的兄弟目录也不行（前缀相似但不是它内部）
-      expect(isSelfUrl("file:///D:/app/resources/app/dist-evil/x.html", prod)).toBe(false);
+      expect(isSelfUrl(`${pathToFileURL(`${DIST}-evil`).href}/x.html`, prod)).toBe(false);
       // 用 .. 爬出去
-      expect(isSelfUrl(`file:///${DIST.replace(/\\/g, "/")}/../secret.html`, prod)).toBe(false);
+      expect(isSelfUrl(`${DIST_URL}/../secret.html`, prod)).toBe(false);
     });
 
     it("拒绝所有远程地址（外链该走系统浏览器）", () => {

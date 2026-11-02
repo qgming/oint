@@ -533,6 +533,12 @@ let sharedCrypto: Crypto | null | undefined;
 
 async function resolveSharedCrypto(): Promise<Crypto | null> {
   if (sharedCrypto !== undefined) return sharedCrypto;
+  // 纯 Node 进程（单元测试、脚本）没有 Electron 运行时。不要用 import("electron") 探测：
+  // 在 Linux CI 上这次动态导入会阻塞数秒，把首次读/写设置的用例拖到超时。结果同样是回退明文。
+  if (process.versions.electron === undefined) {
+    sharedCrypto = null;
+    return sharedCrypto;
+  }
   try {
     const electron = await import("electron");
     const candidate = electron.safeStorage as Partial<Crypto> | undefined;

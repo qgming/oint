@@ -60,7 +60,8 @@ describe("① 命令白名单", () => {
     expect(result.stdout).toBe("ok");
   });
 
-  it("大小写不敏感、`.exe` 后缀不影响（Windows）", async () => {
+  // `.exe` 解析与大小写不敏感都是 Windows 的语义；POSIX 上 NODE.EXE 本来就不存在
+  it.runIf(process.platform === "win32")("大小写不敏感、`.exe` 后缀不影响（Windows）", async () => {
     const result = await execForPlugin(
       request({ command: "NODE.EXE", args: ["-e", "process.stdout.write('x')"] }),
     );
