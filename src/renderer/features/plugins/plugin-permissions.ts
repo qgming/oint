@@ -75,7 +75,7 @@ export function sortPermissions(
  *
  * ## 覆盖面
  *
- * 这一批对应本方案里**已定义**的能力表（docs/plugin-system-plan.md §4.5）。
+ * 这一批对应插件 API 里**已定义**的能力表。
  * 新增权限时这里必须同步加一条 —— 漏了不会报错，但界面会退化成显示权限 id。
  */
 const PERMISSION_META: Readonly<Record<string, { labelKey: string }>> = {

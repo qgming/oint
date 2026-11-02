@@ -133,7 +133,6 @@
 （`runtime.ts` 的 `applyToolEnd`、`message-mapper.ts` 的 `applyToolResult`）
 都只取**文本块**：文本非空就直接返回文本，图片字节被丢掉。
 于是「模型看到了什么」在界面上完全不存在，只剩一行 `viewport 380×639`。
-（这一条早在 `docs/tool-expand-collapse-audit.md` 的 D8 / F9 里记过。）
 
 ### 做法
 

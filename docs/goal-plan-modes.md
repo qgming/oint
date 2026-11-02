@@ -47,4 +47,4 @@ Goal、Plan、工作约束和执行凭据分别存储，界面从同一持久状
 
 不保留旧计划模式、返回模式、工作流文档读写器或计划文件读取特例，不迁移旧数据。
 
-验证命令：`npm test`、`npm run build`、`npm run check:i18n`、`npm run check:unwired`。实现证据与剩余检查记录在开发进度文件中；调研依据见 [重构报告](./planning-capability-report.md)。
+验证命令：`npm test`、`npm run build`、`npm run check:i18n`、`npm run check:unwired`。

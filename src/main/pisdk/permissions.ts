@@ -16,7 +16,7 @@ import { BACKGROUND_JOB_TOOL_NAMES } from "./tools/jobs";
  *
  * toolName 以 `*` 结尾时按**前缀**匹配（`mcp__<server>__*` = 该 server 的全部工具）。
  * 这是 MCP 的前置要求：外部工具名由 server 决定、数量不可预知，逐工具写规则等于
- * 每次调用都要点一次审批卡（见 docs/agent-tools-and-upgrade-guide.md 的 P2-3）。
+ * 每次调用都要点一次审批卡。
  * 内置工具名不含 `*`，因此行为与扩展前完全一致。
  */
 export interface PermissionRule {

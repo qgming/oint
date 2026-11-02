@@ -165,7 +165,7 @@ try {
        const settings = await import("/src/renderer/stores/settings-store.ts");
        projects.useProjectsStore.setState({
          projects: [
-           { id: "p1", name: "polaragent", path: "D:\\\\dev\\\\polaragent", createdAt: 0 },
+           { id: "p1", name: "oint", path: "D:\\\\dev\\\\oint", createdAt: 0 },
            { id: "p2", name: "polartv", path: "D:\\\\dev\\\\polartv", createdAt: 0 },
          ],
          loading: false,
@@ -185,7 +185,7 @@ try {
          activeSessionId: "s-welcome",
          sessions: [{
            id: "s-welcome", title: null, createdAt: Date.now(), updatedAt: Date.now(),
-           cwd: "D:\\\\dev\\\\polaragent", archived: false, pinned: false,
+           cwd: "D:\\\\dev\\\\oint", archived: false, pinned: false,
            messageCount: 0, model: null,
          }],
          messagesBySession: {},
@@ -301,7 +301,7 @@ try {
   );
   check(
     "上下文行显示的是会话工作目录所属的项目",
-    m.contextLabel.includes("polaragent"),
+    m.contextLabel.includes("oint"),
     m.contextLabel,
   );
   check(

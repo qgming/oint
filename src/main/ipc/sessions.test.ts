@@ -158,9 +158,9 @@ describe("sessions:set-cwd", () => {
   it("把 {id, cwd} 原样交给 store", async () => {
     store.setCwd.mockResolvedValue(undefined);
 
-    await invoke(IPC.sessions.setCwd, { id: "s1", cwd: "D:\\dev\\polaragent" });
+    await invoke(IPC.sessions.setCwd, { id: "s1", cwd: "D:\\dev\\oint" });
 
-    expect(store.setCwd).toHaveBeenCalledWith("s1", "D:\\dev\\polaragent");
+    expect(store.setCwd).toHaveBeenCalledWith("s1", "D:\\dev\\oint");
   });
 
   it("store 拒绝时错误照常抛给渲染层（那里要把它显示出来）", async () => {

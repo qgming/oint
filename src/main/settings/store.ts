@@ -506,7 +506,7 @@ export function createSettingsStore(
      * 后果不是理论问题：渲染层可以写 `permissionMode: "full"`，缓存立即更新
      *（下面那行 `cache = ...`），**审批链当场失效**。今天渲染层是我们自己的代码所以
      * 不算漏洞，但插件界面一旦进入渲染层，`window.oint.settings.write` 就是全套权限 ——
-     * 这正是 docs/plugin-system-plan.md §6 缺口二。
+     * 这正是插件界面进入渲染层时需要堵住的缺口。
      *
      * 跑一遍 `mergeWithDefaults` 一次解决两件事：
      *  - 非法值被归一（`"full"` 是合法值，但 `"whatever"` 会回落 `default`）；

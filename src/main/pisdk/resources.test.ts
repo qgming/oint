@@ -142,9 +142,7 @@ describe("resolveBuiltinSkillDir", () => {
    * **文件真的进没进包**由 electron-builder.yml 的 `files:` 负责，测不到，只能靠打包实测。
    */
   it("开发期与打包后是同一个相对形状（resources/ 在 appPath 下）", () => {
-    expect(normalize(resolveBuiltinSkillDir("D:\\dev\\polaragent"))).toBe(
-      "D:/dev/polaragent/resources/skills",
-    );
+    expect(normalize(resolveBuiltinSkillDir("D:\\dev\\oint"))).toBe("D:/dev/oint/resources/skills");
   });
 
   /**
@@ -308,8 +306,8 @@ describe("内置技能的完整性", () => {
 describe("resolveBuiltinPromptDir", () => {
   it("指向 <appPath>/resources/prompts（与内置技能同构）", () => {
     expect(normalize(resolveBuiltinPromptDir("/app"))).toBe("/app/resources/prompts");
-    expect(normalize(resolveBuiltinPromptDir("D:\\dev\\polaragent"))).toBe(
-      "D:/dev/polaragent/resources/prompts",
+    expect(normalize(resolveBuiltinPromptDir("D:\\dev\\oint"))).toBe(
+      "D:/dev/oint/resources/prompts",
     );
   });
 

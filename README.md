@@ -1,181 +1,160 @@
 <div align="center">
-  <!-- 白底那一份：README 在 GitHub 上会跟随读者主题变深，透明底的墨色字形在暗色下看不见 -->
-  <img src="public/oint.png" alt="Oint Logo" width="128" height="128" />
+
+<img src="public/oint.png" alt="Oint logo" width="120" height="120" />
 
 # Oint
 
-**基于 pisdk 的桌面 Agent 工作台**
-  基于 pi 1.2.0 官方生态（pi-durable / pi-ai / pi-mcp / Chord / pi-codemode），提供对话、会话持久化与原生工具：
-  主进程独占 Agent 运行时，渲染进程零特权，UI 以 assistant-ui 为核心。
+**本地优先的桌面 Agent 工作台**
 
-  <p>
-    <img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white" />
-    <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" />
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-7-3178C6?style=flat-square&logo=typescript&logoColor=white" />
-    <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white" />
-    <img alt="Tailwind" src="https://img.shields.io/badge/Tailwind-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" />
-    <img alt="Local First" src="https://img.shields.io/badge/Local--First-Yes-16A34A?style=flat-square" />
-  </p>
+对话、工具、浏览器、技能与 MCP —— 都在你的桌面上完成。
+
+<p>
+  <img alt="CI" src="https://github.com/qgming/oint/actions/workflows/ci.yml/badge.svg?branch=main" />
+  <img alt="Package" src="https://github.com/qgming/oint/actions/workflows/package.yml/badge.svg?branch=main" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-b99af1?style=flat-square" />
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-44-47848F?style=flat-square&logo=electron&logoColor=white" />
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-7-3178C6?style=flat-square&logo=typescript&logoColor=white" />
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white" />
+  <img alt="Tailwind" src="https://img.shields.io/badge/Tailwind-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-16A34A?style=flat-square" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" />
+</p>
+
+<p>
+  <a href="#快速开始">快速开始</a> ·
+  <a href="docs/features.md">功能一览</a> ·
+  <a href="docs/plugin-native-api.md">插件开发</a> ·
+  <a href="CHANGELOG.md">更新日志</a> ·
+  <a href="https://github.com/qgming/oint/actions/workflows/package.yml">构建状态</a>
+</p>
+
 </div>
 
-当前使用精确固定的 Pi 1.2.0 原生生态（含 `tool_search` 延迟工具网关与 QuickJS `codemode` 沙箱），不包含 coding-agent/TUI。参见 [实施记录](docs/pi-native-implementation.md)、[升级记录](docs/pi-upgrade-1.2.md)、[插件作者 API](docs/plugin-native-api.md) 和 [手动验收提示词](docs/manual-acceptance-prompt.md)。
-
 ---
 
-## 产品定位
+Oint 是一个基于 **Pi 1.2.0 原生生态**（pi-ai / pi-durable / pi-mcp / Chord / pi-codemode）的桌面 Agent 应用。
+它把模型对话、文件与命令、浏览器操作、网络检索、技能、MCP 和子智能体收进一个本地优先的 Electron 工作台：
+**会话、设置与凭据留在本机，模型请求只发往你配置的 OpenAI 兼容服务。**
 
-Oint 是面向本地工作流的桌面 Agent 客户端：把 pisdk 的能力原样呈现，只在其上补少量只读工具。
+## 为什么是 Oint
 
-- **对话**：assistant-ui Thread ↔ 主进程的 AgentHarness（每会话一个），事件经 IPC 逐条转发。
-- **工具**：内核原生四件套 `bash`/`read`/`write`/`edit` + 自建 `grep`/`glob`/`todo` +
-  **网络检索 `web_search`/`web_fetch`** + **内置浏览器操作**
-  `browser_*`（打开网址、读页面、点击、输入、截图、看控制台）；
-  刻意不做持久终端；脚本执行只以 `codemode` 的 **QuickJS 沙箱**形态存在（无文件系统/网络/require，本体按高风险审批，能力仅限调用本会话已注册的工具），不引入「任意代码执行」这类新权限面。
-- **能力归属**：模型路由、流式请求、会话持久化、上下文压缩、分支 fork 全部由 pisdk 承担。
-- **本地优先**：会话、设置、AGENTS.md 与技能都在本机；模型请求只发往你配置的 OpenAI 兼容服务。
+- **本地优先** —— 会话存放在 SQLite，API Key 由 `safeStorage` 加密，所有数据都在 `~/.oint` 下，随时可备份、迁移或彻底删除。
+- **原生工具箱** —— 文件、命令、检索、浏览器操作与 MCP 都是真实工具；模型不是只会聊天，而是能在你的桌面上把事做完。
+- **克制的权限面** —— 三档权限、逐次审批、路径守卫与命令黑名单；`codemode` 只在 QuickJS 沙箱里调用已注册工具，不引入任意代码执行。
+- **可扩展** —— SKILL.md 技能、魔法提示、MCP 系统预设、子智能体，以及 chord 1.2 原生插件，都可以按需装载。
 
----
+## 核心能力
+
+| 分区 | 能力 |
+| --- | --- |
+| 💬 对话 | 流式回复、思考链折叠、工具调用分组、Markdown、图片附件、停止 / 重试、运行中排队与插话 |
+| 🧰 工具 | `bash` / `read` / `write` / `edit` + `grep` / `glob` / `todo` + `web_search` / `web_fetch` + 九件套 `browser_*` |
+| 🌐 浏览器 | 右侧 `<webview>` 面板：导航、读页面、真实点击 / 输入 / 截图、控制台与网络记录，读类免审批 |
+| 🧩 扩展 | 技能、魔法提示、MCP（34 个零配置系统预设 + 用户配置）、七种内置子智能体、chord 1.2 插件 |
+| 🛡️ 权限 | 默认权限 / 帮我审批 / 完全访问；审批卡支持「允许一次 / 始终允许 / 拒绝并说明理由」 |
+| 🗂️ 会话 | SQLite 持久化、项目分组、置顶、归档、任意消息分支、分页历史、Ctrl+K 全局搜索 |
+| 📊 数据 | 用量总览、年度热力图、日期趋势与模型用量；压缩、失败与工具支出都计入账本 |
+| 🎨 界面 | React 19 + assistant-ui，中英双语，深浅主题，`#b99af1` 品牌紫，克制的印刷文档隐喻 |
+
+完整能力清单见 [功能一览](docs/features.md)。
 
 ## 架构
 
-```
-┌─ 渲染进程（sandbox，零特权）───────────────────────────────┐
-│  React 19 + shadcn/ui + assistant-ui（ExternalStoreRuntime）│
-│  zustand 状态层 · react-i18next（中英双语）· lucide 图标     │
-└───────────────────────┬────────────────────────────────────┘
-                        │ preload（contextBridge，白名单 API）
-┌───────────────────────┴────────────────────────────────────┐
-│  主进程（唯一特权进程）                                      │
-│  ├─ pisdk 装配：AgentHarness / Provider / 工具层 / 权限门     │
-│  ├─ SQLite 会话仓储（分页游标 + 标题索引）                     │
-│  ├─ 三模式权限：默认权限 / 帮我审批（AI）/ 完全访问            │
-│  ├─ 安全层：路径守卫、命令黑名单、safeStorage 加密            │
-│  └─ 设置与 AGENTS.md 持久化                                  │
-└────────────────────────────────────────────────────────────┘
-```
+```mermaid
+flowchart TB
+  subgraph Renderer["渲染进程 · sandbox · 零特权"]
+    UI["React 19 + assistant-ui<br/>zustand · i18next"]
+  end
 
-关键设计：**主进程独占 pisdk**（其资源文件依赖 `import.meta.url`，因此主进程构建必须外置依赖，不能内联打包）；渲染进程通过类型化 IPC 通道消费。事件**逐条**下发（`emitSafe` → `webContents.send`，一对一）；流式增量的合帧在渲染层做（`chat-store` 的 32ms 合帧缓冲），终端通道则另有主进程侧的按字节合帧。
+  subgraph Main["主进程 · 唯一特权进程"]
+    Harness["AgentHarness<br/>每会话一个"]
+    Tools["工具层 · 权限门 · 审批"]
+    Store[("SQLite<br/>会话与文档")]
+    Plugins["chord 1.2<br/>插件宿主"]
+  end
 
-目录：
-
-```
-src/
-├── main/                  # Electron 主进程
-│   ├── app/               # 路径与窗口
-│   ├── ipc/               # 按域拆分的 IPC 处理器
-│   ├── pisdk/             # AgentHarness 装配、会话仓储、工具、权限、审批
-│   ├── security/          # 路径守卫 / 命令黑名单
-│   └── settings/          # 设置存储（safeStorage 加密）
-├── preload/               # contextBridge 白名单 API
-├── renderer/
-│   ├── app/               # 外壳：标题栏 / 侧边栏 / 主区 / 全局快捷键
-│   ├── features/          # chat / settings / search
-│   ├── components/        # shadcn 基础组件 + assistant-ui 元素
-│   ├── runtime/           # ExternalStoreRuntime 桥与事件桥
-│   └── stores/            # zustand 状态层
-└── shared/                # 双端契约（IPC / 类型 / i18n 词条）
+  UI <-->|"类型化 IPC · contextBridge 白名单"| Main
+  Harness --> Pi["Pi 1.2.0 生态<br/>pi-ai · pi-durable · pi-mcp"]
+  Tools --> Browser["内置浏览器 webview"]
+  Tools --> MCP["MCP servers"]
+  Tools --> Local["本地文件 · 技能 · 提示"]
+  Harness --> Store
+  Plugins --> Tools
 ```
 
----
+关键设计：**主进程独占 Agent 运行时**，渲染进程只通过类型化 IPC 消费；
+流式事件逐条下发，渲染层按 32ms 合帧；工具调用与审批始终经过同一道权限门。
 
-## 功能
+## 快速开始
 
-| 分区 | 内容 |
-| --- | --- |
-| 对话 | 流式回复、思考链折叠、工具调用分组、Markdown、停止/重试、图片附件、运行中排队与插话 |
-| 工具 | 内核原生 `bash`/`read`/`write`/`edit`（description 已覆盖，补「何时用/何时不要用」）+ 自建 `grep`/`glob`/`todo` + **网络检索 `web_search`/`web_fetch`** + 浏览器九件套 `browser_open`/`browser_history`/`browser_snapshot`/`browser_act`/`browser_wait`/`browser_screenshot`/`browser_logs`/`browser_dialog`/`browser_evaluate` + **`tool_search` 延迟工具网关**（MCP 聚合工具默认不进每轮请求体，模型搜索命中后装入下一轮，跨压缩保留） + **`codemode`**（在 QuickJS 沙箱里写脚本调用本会话工具；脚本没有文件系统/网络/require，本体按高风险走审批，脚本里的嵌套调用各自走既有审批链路） |
-| 网络搜索 | `web_search` 检索并返回「标题 + URL + 摘要」的来源列表；`web_fetch` 取回单个 URL 的正文（HTML 转纯文本）。后端可配：**SearXNG（默认，免 Key）** + Tavily / Exa / Serper / Brave，在「设置 → 网络搜索」里切换。两个工具都是**只读、免审批**（与 read/grep 同档）；抓取只允许**公网地址** —— 环回、私网与链路云元数据目标一律拒绝，连接钉死在已验证的地址集合上（防 DNS 重绑定），只跟随同源重定向。结果以「外部不可信内容」标注；子智能体也能拿到这两个工具（`explorer` / `oracle` 默认带） |
-| 内置浏览器 | 右侧面板的 `<webview>` 可供模型操作：导航、读页面（可见文本 + 带 ref 的可交互元素）、真实鼠标点击 / 悬停、按键与组合键、输入（**回读校验**，不再假报成功）、下拉选择、等待渲染落定、视口截图（图片进上下文）、控制台与网络记录（`browser_logs` 两种视图）、页面内求值。点击前会复核坐标上确实是目标元素，复核不过就报错而不是静默点空。JS 弹窗（alert / confirm / prompt）默认自动关闭，页面不会因无人应答而卡死。读类工具免审批，改页面 / 执行脚本走审批；**面板没开时模型会自己把它叫出来**（展开右侧栏并切到浏览器视图，然后等页面就绪） |
-| 待办 | `todo` 工具维护会话级清单（整表替换语义）；对话区上方另有**独立可折叠面板**，重启后由会话记录恢复 |
-| 会话 | 新建/切换/重命名/归档/删除、**侧栏「置顶 / 项目 / 最近」分组**（绑定文件夹即为项目，会话按其工作目录自动归组）、标题索引、分页加载历史、**从任意消息分支**、SQLite 持久化 |
-| 权限 | 三模式（默认权限 / 帮我审批 / 完全访问）、审批卡（允许一次 / 始终允许 / 拒绝并说明理由）、「始终允许」规则库 |
-| 智能体模式 | **两个模式，输入框左侧（权限按钮左边）切换**：**智能体**（自己判断任务类型，该做的直接做）与**编排者**（先派子智能体做，自己负责计划与验收）。两个名字都是**名词** —— 它们回答「你在跟谁说话」，而不是「强度多大」（那是权限按钮的维度）。**两个模式的工具能力完全相同**，区别只在系统提示怎么写：编排者模式多一段「什么时候该派 / 不该派 / 派完怎么收敛」的路由规则，并且身份句改成「默认不自己动手」。模式是**会话级**的（写进会话索引、重启后仍生效、切换在**下一次发送**即生效），设置里的「默认模式」只决定新会话用哪个；运行中不可切换。系统提示是每轮现算的函数，所以切换不必重建 harness |
-| 技能 | SKILL.md 扫描，**四个固定来源、顺序即优先级**：数据目录 `skills/` → 项目目录 `.oint/skills` → **跨工具共享的 `~/.agents/skills`** → **随包分发的内置技能 `<应用目录>/resources/skills`**（同名时用户/项目胜出，所以内置行为永远可被覆盖）。**跨工具共享那一档**（`~/.agents/` 是 Claude Code / Codex / Cursor / ZCode 也在扫的约定目录，技能格式几家一致）让用户手上已有的技能直接可用：**可禁用、不可在此删除**（删掉它会让别的工具一起丢技能），Oint 自己的导入与删除只作用于数据目录那一份。功能永久开启（可逐条禁用）、把「名称 + 描述 + 路径」索引注入系统提示（正文按需读取）；设置里按**「系统 / 全局 / 用户」三个页签**分组（系统 = 内置，全局 = 跨工具共享，用户 = 自己添加的），用户页签可用 **zip 技能包导入**、点行查看 SKILL.md 原文或删除。**内置技能不可删除**（住在应用目录里、随升级更新，删了下次升级又回来）—— 不需要时用禁用。内置技能**不拷贝到数据目录**，所以升级应用 = 整包替换即完成更新，不需要 manifest / 暂存那套对账。当前内置八个：**deep-research**（并行子智能体做多来源调研，产出带引用的报告）、**domain-modeling**（建立并打磨项目的领域模型：术语表 CONTEXT.md 与 ADR）、**grilling**（就一个方案对用户不留情面地追问，直到达成共识）、**learn-everything**（把文档或主题变成分章节的互动课程，带练习与批改）、**simplify**（不改行为地简化代码）、**skill-creator**（创建 / 评审 / 改进技能本身，带可跑的校验脚本）、**super-research**（八种自主研究模式：实验循环 / 主题调研 / 量化分析 / 对比评测 / 根因排查 / 消融实验 / 论文复现 / 论文写作与引用校验）、**verification-planning**（动手前先设计「用什么证据能证明它成了」）。技能目录里可以有附属文件与**可执行脚本**（`super-research` 带 9 份参考 + 3 个 Node 脚本，`skill-creator` 带 3 份参考 + 校验脚本，`deep-research` 与 `learn-everything` 各带 2–3 份参考）。SKILL.md 用相对链接引用它们，**有测试保证这些链接指向的文件真实存在，并且真的会执行脚本一次**（防止「文档写着跑这个脚本，脚本却不在/跑不起来」） |
-| 魔法提示 | 可复用的提示词片段（`.md`），输入框敲 `/` 调用，**三个固定来源、顺序即优先级**：数据目录 `prompts/` → 项目 `.oint/prompts` → **随包分发的内置提示 `<应用目录>/resources/prompts`**。设置里按「系统 / 用户」两个页签分组：系统页签是内置提示（**只读**，点开是查看器；想改措辞就在用户页签新建一份**同名**提示，同名时以用户那份为准），用户页签可在统一的表单弹窗里新建 / 编辑 / 删除。内置的是 **14 条工作流型提示**（不是"帮我翻译一下"那种一次性聊天任务）—— 每条都有**落盘产出物、检查点与红线**：**plan**（只读探索 → 给实现计划 → 停下等确认，未批准不动手）、**spec**（反过来访谈你，把模糊需求逼成带可判定验收标准的 `SPEC.md`，然后另开会话实现）、**map**（只读测绘陌生模块：入口 / 调用方 / 惯例 / 风险，结论带 `文件:行号`）、**init**（读结构与构建配置，生成项目级 `AGENTS.md`；已有文件先确认；只写"删掉它代理会犯错"的内容）、**feature**（复述验收标准 → 探索 → 计划 → 实现 → 真跑自测 → 小结）、**tdd**（红-绿-重构：先证明测试失败再写最小实现）、**debug**（复现 → 最小化 → 假设 → 验证 → 修根因 → 补回归测试，禁止猜着改）、**verify**（交付前跑真实检查、核对引用点、清理残留，并报告存疑项）、**review**（只读评审，按严重度列正确性问题 + 说明验证边界，可派子智能体独立复核）、**fix-tests**（跑 → 归因 → 最小修复 → 复跑，禁止把测试改松）、**security**（注入 / 鉴权 / 密钥 / 依赖，按严重度给修复建议）、**pr**（PR 描述：背景 / 改动 / 测试计划 / 风险与回滚，禁止虚构测试结果）、**commit**（按改动生成提交信息，不执行提交）、**handoff**（把进度写成可接力的交接文档，换会话或压缩前用）。内置提示**不可删除**（住在应用目录里、随升级整包替换），也**不拷贝到数据目录**；有测试保证这批文件真的在、frontmatter 描述非空、正文达到"工作流"量级、且不与内置指令同名 |
-| MCP | 外部 MCP server 的工具以 `mcp__<server id>__<tool>` 暴露给模型（限定名同时是权限门 `mcp__<id>__*` 的解析依据）。设置里分两层：**系统预设**（随包分发的免费远端服务，**零配置**——不用申请 Key、不用填地址，调用**一律免审批**，面板上只能启用 / 停用）与**用户配置**（自己新增的 stdio 命令或 HTTP 端点，可增删改、可试连，仍走审批卡 / 「始终允许」规则）。**内置 34 个预设，全部默认开启**，按领域分组：**知识与百科**（Wolfram、Wikipedia、Wikidata、Edgepedia、DeepWiki、MDN、Context7）、**搜索与抓取**（Exa、Firecrawl、grep.app、ThinkPattern）、**学术与科学**（arXiv、PubMed、Crossref、PubChem、UniProt）、**地球与气候**（Open-Meteo、OpenWeatherMap、NASA Earthdata、GBIF）、**健康与医学**（WHO GHO、Medical Terminologies、Open Food Facts）、**金融与统计**（World Bank、Statistics of the World）、**文化与生活**（OpenLibrary、MusicBrainz、TVmaze、DynamicFeed、Cleanor、Channel3）、**旅行**（Ferryhopper、Peek、Gondola）。预设准入三条：**零配置**（只收远端 HTTPS，不收要 Node/uv 的 stdio、不收要 Key/OAuth 的）、**通用**（不绑定某一家厂商的文档）、**全球**（不是单城市/单国数据）；每一条都经过真实握手 + 真实工具调用实测（`OINT_LIVE_MCP=1` 的联网用例一次跑完 34 条）。**工具网关**：34 台 server 的几百个工具如果逐个展开，schema 每轮都会进请求体（旧实现还有个 64 个工具的硬上限会静默截断）。所以**每台 server 恒定只暴露一个聚合工具** `mcp__<server id>__call`（入参 `{ tool, arguments }`，description 里带工具索引），细节与完整参数 schema 由内置工具 **`mcp_tools`** 按需读取（`mcp_tools()` / `({server})` / `({server, tool})` 三级，只读本地缓存、免审批；实测 372 个远端工具因此收敛成 35 个工具位）。**聚合网关是「延迟工具」**（1.2.0 的 `deferred`）：34 个 `mcp__<id>__call` 默认**不进每轮请求体**，模型用 **`tool_search`** 按需检索装载（或直接读 `mcp_tools` 目录再点名调用）；`codemode` 脚本里可以用 `searchTools()` 发现它们。聚合工具刻意保留限定名的三段形状 —— 权限规则 `mcp__<id>__*` 是前缀匹配，因此「按 server 授权 / 免审批」那两条链路一行都不用改。同 id 时**用户配置整条胜出**（与技能、子智能体同一条原则），面板两侧各给一枚方向明确的徽标（「已被你的同名配置覆盖」/「正在覆盖系统预设」）。每张卡片右上角都有**只重连这一台**的按钮（失败后重试 / 刷新工具清单，不动其它连接），用户配置的次要操作（编辑 / 删除）收在「更多操作」菜单里，删除不再是一个随时可能误点的裸图标；启用开关系统与用户两层都有 |
-| 指令 | **内置**的斜杠命令，与魔法提示分开：它由**应用**执行，整条命令不会变成模型消息（也不会进上下文与 KV cache）。`/` 菜单里是指令 → 技能 → 魔法提示三栏，指令排在第一位。首批一条：**`/compact`** —— 压缩较早的对话历史，可带说明（`/compact 保留数据库相关的讨论` → 内核的 `customInstructions`）。运行中或正在压缩时菜单置灰并说明原因、回车不发消息也不吃草稿。**压缩过程全程有提示**（对话区顶部）：`压缩中 · 自动/手动/溢出恢复 + 已用秒数` → `已压缩上下文 · 约 N tokens · 保留 M 条`（可展开看摘要）／`压缩失败：原因`（点掉即收起）／`压缩已取消`。三条触发路径都由 pi 内核负责：**阈值自动压缩**（`contextTokens > 窗口 − 20k`，见 `runtime.ts` 的 `compaction` 选项）、**溢出恢复**（供应商报超长后每代兜底一次）、**手动**（`/compact`）。归属：`shared/contracts/commands.ts` 是注册表，`features/chat/commands.ts` 是可用性判定与执行，发送收口在 `OintRuntimeProvider.onNew`（`/compact` 永远不会被当成消息发出去） |
-| 子智能体 | 主 AI 可把独立工作派给子智能体（`Task` / `TaskWait` / `TaskList` / `TaskStop`），一次委派 = 一个隐藏子会话：**内置预设七个** —— explorer / code-reviewer / fixer / test-runner / oracle / designer / verifier，外加 `${数据目录}/subagents/*.md` 与项目目录 `.oint/subagents/*.md` 里的自定义定义（定义住在自己那个文件夹里，和技能、MCP 一样，没有额外的目录配置）；主 AI 还能在 `Task` 里内联定义**临时子智能体**（不落盘）。**可用清单走系统提示里的 `<available_subagents>` 索引**（与技能的 `<available_skills>` 同构，两个模式都注入，超过 12 个截断并说明），`Task` 的描述只指向它、不再抄一份名录。子智能体拿到的是**与主代理同一批工具**（bash / read / write / edit / grep / glob / todo / read_image / 作业四件套 / web / browser / **MCP**），唯二例外是不能继续委派（Task 系列不注入子会话）与 `ask_user`（它跑在隐藏会话里，提问卡没有任何地方渲染得出来 —— 需要用户拍板的事写进报告由主代理问）；**工具不再可配**（旧定义里的 `tools:` / `disabled_tools:` 一概忽略）。想给一次性的帮手收窄工具时，主 AI 可以在 `Task` 的 `definition.tools` 里传一份**白名单**（名字必须真实存在，写错会带着可用清单被拒），例如只读地扫目录就传 `["read","grep","glob"]`，模型与思考档位可固定也可跟随主会话，并发上限（**同一条消息里并发派发也不会绕过**：名额是同步预约的）、可中途停止；审批回到父会话弹出。**没有轮次上限** —— 异常检测靠**重复调用守卫**（同名同参数的连续调用第 3 次注入纠正消息、第 5 次终止运行），因为轮次是资源消耗、不是行为特征。**报告靠投递机制交回**：子智能体一跑完，报告就自动作为一条消息送到主代理（正在跑就插进当前轮次，空闲就起一轮；连续自动唤醒有上限，避免「派发 → 报告 → 又派发」自激），所以不必靠模型记得调 `TaskWait`。**进度与终态逐轮落盘**：重启后历史委派仍然显示真实的轮次与结论，进程在运行期间退出则标为**意外终止**（结果未知、显示最后见到的时间），要不要重派由主 AI 决定（`Task {resumeOf}` 直接续跑原来的 agent / 任务）。主会话里的子智能体呼叫**不是普通工具折叠行**，而是 `elements/agent-status` 的胶囊行（状态 / 轮次 / 耗时，绿勾只留给真的跑完的），点它展开右侧栏「子智能体」视图：按会话列出全部委派，单条执行详情含任务、报告与子会话转录 ——**转录复用主会话的消息渲染器**，Markdown / 代码高亮 / 工具卡与主线程一致。设置里有独立「子智能体」分栏（系统 / 用户页签、逐条启用、编辑器、诊断；功能永久开启，没有总开关）。原「侧边聊天」入口已并入这里 |
-| 设置 | 通用（主题/语言/密度/字体）、模型服务（两种 OpenAI 格式 + 拉取模型）、**网络搜索**、**MCP（系统预设 / 用户配置）**、技能、**子智能体**、魔法提示（系统 / 用户）、个性化（AGENTS.md）、数据（数据目录位置）、关于（名称 / 版本 / pi 内核） |
-| 数据统计 | 概览、年度热力图、日期趋势与模型用量图。总量以原生 UsageDoc 为准，日期来自已提交账本的持久增量，包含压缩、失败和工具支出；不再维护 usage-stats.json。未保留日期的金额计入总量并单独标注，日期图表只展示有日期的记录。 |
-| 搜索 | Ctrl+K 全局搜索（会话/消息/设置/命令）、会话内查找（Ctrl+F） |
+**环境要求**：Node.js 22.19.0+、npm 10+，Windows / macOS / Linux。
 
-### 模型服务
+```bash
+git clone https://github.com/qgming/oint.git
+cd oint
+npm ci
+npm run dev
+```
 
-仅支持 OpenAI 兼容接口的两种格式：
+首次配置：
 
-| 格式 | 端点 |
-| --- | --- |
-| `openai-completions` | `/chat/completions`（含 reasoning 内容兼容） |
-| `openai-responses` | `/responses` |
+1. 打开「设置 → 模型服务」。
+2. 添加 OpenAI 兼容服务：Base URL（自带 `/v1`）与 API Key，选择 `openai-completions` 或 `openai-responses`。
+3. 添加模型（或「拉取模型」），并在「默认路由模型」中选中它。
+4. （可选）在「个性化」编辑 `AGENTS.md`，写下希望 Agent 长期遵守的规则。
 
-Base URL 需自带 `/v1`。API Key 使用 Electron `safeStorage` 加密落盘（不可用时回退明文并告警）。
+> 应用数据默认在 `~/.oint`，可用 `OINT_HOME` 指向其他绝对路径。
+> 不要把它放在 OneDrive / Dropbox 等云同步盘内：`sessions-v1/` 是 SQLite + WAL，并发同步有损坏风险。
+> 凭据不会离开本机；模型请求只发往你配置的服务。
 
----
+## 构建与打包
+
+```bash
+npm run build    # 类型检查 + 构建 renderer / 主进程 / preload
+npm run pack     # 生成 release/ 下可运行的应用目录
+npm run dist     # 生成当前平台安装包
+```
+
+仓库内置两条 GitHub Actions：
+
+- **CI**（`.github/workflows/ci.yml`）：推送与 PR 时运行 lint、类型检查与单元测试。
+- **Package**（`.github/workflows/package.yml`）：推送 `v*` 标签或手动触发，自动构建 Windows（NSIS）、macOS（zip）、Linux（AppImage / deb / rpm / tar.gz），并把安装包附加到 GitHub Release。
 
 ## 数据目录
 
-应用数据固定放在家目录的点目录，**与 Electron 的 Chromium 缓存分开**：
-
-```
-~/.oint/                    # 应用数据（可用 OINT_HOME 覆盖）
+```text
+~/.oint/                    # 应用数据（OINT_HOME 可覆盖）
 ├── settings.json           # 设置（API Key 经 safeStorage 加密）
-├── sessions-index.json     # 可删除的列表缓存；元数据以原生 document 为准
-├── projects.json           # 已绑定的项目文件夹（侧栏「项目」分组）
+├── projects.json           # 已绑定的项目文件夹
 ├── permission-rules.json   # 「始终允许」规则
-├── AGENTS.md               # 个性化长期偏好（可手写，适合纳入版本管理）
-├── sessions-v1/            # 每个主聊天家族一个原生 SQLite（含子会话、任务与文档）
-├── skills/                 # 技能（SKILL.md，递归扫描）
-├── prompts/                # 魔法提示（*.md，只读直接子级，供显式调用）
+├── AGENTS.md               # 个性化长期偏好
+├── sessions-v1/            # 原生 SQLite：会话、子会话、任务与文档
+├── skills/                 # 技能（SKILL.md）
+├── prompts/                # 魔法提示（*.md）
 ├── subagents/              # 子智能体定义（*.md）
-└── cache/                  # 可再生成的缓存（models.dev 模型元数据）
+└── cache/                  # 可再生成的缓存
 ```
 
-> ⚠️ `settings.json`（含 API Key）与 `permission-rules.json` 也在这个目录里。
->
-> **写侧已收口**：会话的路径守卫（`sessionAllowedRoots`）**不放行数据根本身**，只放行
-> `skills` / `prompts` / `subagents` 三个子目录 + 随包分发的 `resources/skills` 与
-> `resources/prompts` + 系统临时目录，
-> 所以 `read` / `write` / `edit` 够不到凭据与审批规则（有测试钉住）。
-> 这也意味着**数据根不能整个交给模型** —— 加允许根时要按子目录逐项放行。
->
-> 文件操作与检索按允许目录及真实路径校验；shell 由权限与审批控制，子进程使用环境变量白名单。
-> 这些是桌面宿主的执行边界，不将 Node 插件进程隔离称为操作系统沙箱。
+Chromium 缓存（`Cache` / `GPUCache` / `IndexedDB` 等）仍由 Electron 放在平台默认位置，
+与应用数据分开，备份和卸载只需要处理 `~/.oint` 一个目录。
 
-技能、魔法提示与子智能体定义除了数据目录里的固定文件夹，还会扫描**会话工作目录下的 `.oint/` 同名子目录**
-（项目级，跟随会话的 cwd，同样无需配置）。
+## 开发
 
-**技能与魔法提示还各多一层内置来源**：`<应用目录>/resources/skills/**` 与
-`<应用目录>/resources/prompts/*.md`（随包分发，见上方「功能」表的技能与魔法提示两行）。
-它们在优先级里排**最后**，所以数据目录或项目里的同名项会遮住它 —— 这也是「内置行为永远可被覆盖」
-的实现方式。两层内置资源都进「系统」页签：技能可禁用但不可删除，魔法提示只读（想改就新建同名提示）。
-
-**MCP 的「系统预设」不在磁盘上，而在代码里**（`src/shared/mcp/builtin-servers.ts`）：
-它们只是「一个 id + 一个 URL + 一句说明」，而说明要跟着界面语言走，放数据文件反而更绕。
-预设不进 `settings.mcpServers`，启停选择记在 `settings.systemMcpServerEnabled`；
-两层的合并口径只有一份实现（`resolveMcpServerEntries` / `effectiveMcpServerConfigs`），
-设置面板与运行时共用它 —— 面板里显示的与实际连上的因此不会漂移。
-
-Chromium 的 `Cache`、`Code Cache`、`GPUCache`、`IndexedDB` 等仍由 Electron 放在平台默认位置
-（Windows `%APPDATA%\Oint`、macOS `~/Library/Application Support/Oint`、Linux `~/.config/Oint`）。
-
-之所以分层：这些浏览器缓存实测可达数百 MB，而真正的应用数据只有几十 MB。分开之后，备份、同步、
-迁移或彻底卸载只需要处理 `~/.oint` 一个目录。
-
-| 环境变量 | 作用 |
+| 命令 | 说明 |
 | --- | --- |
-| `OINT_HOME` | 覆盖数据根目录，必须是绝对路径（相对路径会告警并回落到 `~/.oint`） |
+| `npm run dev` | 启动开发环境（Vite + Electron HMR） |
+| `npm run typecheck` | 检查渲染进程、主进程与 preload 类型 |
+| `npm run lint` | Biome 检查（`lint:fix` / `format` 自动修复） |
+| `npm run test` | Vitest 单元测试（node + jsdom 两个 project） |
+| `npm run check:pi` | 校验 Pi 生态依赖为核准的 1.2.0 全家桶 |
+| `npm run check:unwired` | 检查 `elements/` 下已建好但未接线的组件 |
+| `npm run probe:kernel` | 免凭据原生探针：Chord 往返、模型目录、SQLite、MCP |
+| `npm run probe:packaged` | 对真实 `app.asar` 运行打包探针 |
+| `npm run probe:system` | 系统预设层探针（内置资源 + MCP 真实握手） |
 
-```powershell
-# 用一次性数据目录启动，适合试验或调试，不污染日常数据
-$env:OINT_HOME = "$PWD\.tmp-data"; npm run dev
-```
-
-> 不要把数据目录放在 OneDrive / Dropbox 等云同步盘内：`sessions-v1/` 是 SQLite + WAL，
-> 同步客户端并发改写有损坏风险。
-
-开发阶段不考虑旧版本数据迁移，换目录即视为全新开始。
-
----
+端到端模型冒烟与浏览器探针说明见 [原生验证探针](docs/native-verification-probes.md)；
+手动验收流程见 [手动验收提示词](docs/manual-acceptance-prompt.md)。
 
 ## 快捷键
 
@@ -184,68 +163,25 @@ $env:OINT_HOME = "$PWD\.tmp-data"; npm run dev
 | `Ctrl/Cmd + K` | 全局搜索 |
 | `Ctrl/Cmd + F` | 会话内查找 |
 | `Ctrl/Cmd + N` | 新建对话 |
-| `Ctrl/Cmd + B` | 折叠/展开侧栏 |
+| `Ctrl/Cmd + B` | 折叠 / 展开侧栏 |
 | `Ctrl/Cmd + ,` | 打开设置 |
 | `Enter` / `Shift + Enter` | 发送 / 换行 |
 | 运行中 `Enter` / `Ctrl + Enter` | 排队 / 插话 |
 
----
+## 文档
 
-## 开发
-
-### 环境要求
-
-- Node.js 22.19.0+（应用内由 Electron 44 提供）
-- npm 10+
-- Windows / macOS / Linux
-
-### 常用命令
-
-| 命令 | 说明 |
+| 文档 | 内容 |
 | --- | --- |
-| `npm run dev` | 启动开发环境（Vite + Electron HMR） |
-| `npm run start` | 启动已构建的应用 |
-| `npm run typecheck` | 检查渲染进程、主进程与 preload 类型 |
-| `npm run lint` | Biome 检查（`lint:fix` / `format` 可自动修复） |
-| `npm run test` | 运行单元测试（vitest；`node` project 收 `*.test.ts`，`ui` project 收 `*.test.tsx` + jsdom） |
-| `npm run check:unwired` | 检查 `elements/` 下「已建好但未接线」的组件；存在未接线文件时退出码为 1 |
-| `npm run build` | 类型检查并构建 renderer、主进程与 preload |
-| `npm run pack` | 生成 `release/` 下的可运行应用目录 |
-| `npm run dist` | 生成当前平台安装包 |
-
-### 冒烟脚本
-
-| 脚本 | 用途 |
-| --- | --- |
-| `npm run probe:kernel` | 免凭据原生探针：Chord host 运行时的真实往返（契约 / 链路 / facet）、模型目录、文件系统、SQLite commit/fork/reopen、MCP |
-| `npm run probe:packaged` | 在 Electron Node 运行时对真实 `app.asar` 运行同一组探针，并核对六个包的 1.2.0 版本和导入位置；先执行 `npm run pack` |
-| `node scripts/e2e-smoke.mjs` | 端到端冒烟（CDP 驱动真实 Electron，覆盖流式对话、工具调用、审批、完全访问、重启恢复） |
-| `node scripts/probe-browser-guest.mjs` | 内置浏览器探针（CDP 驱动真实 Electron，验证 webview 的 guest 真的附着、导航可用且只加载一次） |
-| `npm run probe:system` | 系统预设层探针（CDP 驱动真实 Electron，免凭据）：内置魔法提示被扫到且同名用户可覆盖、内置不可删、九个 MCP 预设的默认启停与**真实网络握手**、同 id 覆盖、启停落盘与生效，并在真实界面里验设置面板的系统 / 用户两个页签。用独立 `OINT_HOME`，不碰本机数据；联网用例 `OINT_LIVE_MCP=1 npx vitest run --project node src/main/pisdk/mcp-presets.live.test.ts` 可单独跑 |
-
-端到端模型冒烟从环境变量读取凭据：
-
-```bash
-OINT_PROBE_API_KEY=... node scripts/e2e-smoke.mjs
-# 可选：OINT_PROBE_BASE_URL / OINT_PROBE_MODEL
-```
-
-### 首次配置
-
-1. 打开应用，进入「设置 → 模型服务」。
-2. 添加服务：填写 Base URL（自带 `/v1`）与 API Key，选择接口格式。
-3. 添加模型（或用「拉取模型」自动获取），并在「默认路由模型」里选中它。
-4. （可选）在「个性化」编辑 AGENTS.md，写下希望 Agent 长期遵守的规则。
-
----
-
-## 设计
-
-UI 遵循 assistant-ui 的 design.md 规范：印刷文档隐喻、单色 chrome、唯一强调色（品牌紫 `#b99af1`）、克制的线条与动效。
-字体、半径与颜色都是按含义分配的封闭集合，令牌集中在 `src/index.css`，字号角色在 `src/renderer/components/assistant-ui/type.ts`。
-
----
+| [功能一览](docs/features.md) | 完整能力清单与行为细节 |
+| [插件作者 API](docs/plugin-native-api.md) | chord 1.2 原生插件模型与接口 |
+| [Pi 1.2.0 升级记录](docs/pi-upgrade-1.2.md) | 生态升级范围、设计决策与验证证据 |
+| [目标与计划](docs/goal-plan-modes.md) | Goal / Plan / Todo / Task 的使用方式 |
+| [浏览器自动化](docs/browser-automation-and-preview.md) | 坐标级操作、视口与截图 |
+| [请求重试](docs/request-retries.md) | 网络错误与自动重试行为 |
+| [原生验证探针](docs/native-verification-probes.md) | 内核、打包与插件探针 |
+| [手动验收提示词](docs/manual-acceptance-prompt.md) | 一轮真实功能验收的提示词 |
+| [更新日志](CHANGELOG.md) | 版本变更记录 |
 
 ## 开源协议
 
-MIT License
+[MIT License](LICENSE)

@@ -36,8 +36,8 @@ beforeAll(async () => {
 
 const PROJECT: Project = {
   id: "p1",
-  name: "polaragent",
-  path: "D:\\dev\\polaragent",
+  name: "oint",
+  path: "D:\\dev\\oint",
   createdAt: 0,
 };
 const OTHER_PROJECT: Project = {
@@ -169,7 +169,7 @@ describe("项目 chip", () => {
     render(<Harness />);
 
     const chip = await screen.findByRole("button", { name: "工作目录所属项目" });
-    expect(chip.textContent).toContain("polaragent");
+    expect(chip.textContent).toContain("oint");
   });
 
   it("工作目录不在任何项目里时显示「未绑定项目」", async () => {
@@ -200,7 +200,7 @@ describe("项目 chip", () => {
     render(<Harness />);
 
     fireEvent.click(await screen.findByRole("button", { name: "工作目录所属项目" }));
-    fireEvent.click(await screen.findByRole("button", { name: /polaragent/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /oint/ }));
 
     await waitFor(() => expect(create).toHaveBeenCalledWith({ cwd: PROJECT.path }));
     expect(setCwd).not.toHaveBeenCalled();

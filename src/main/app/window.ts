@@ -154,8 +154,7 @@ const ALLOWED_GUEST_PERMISSIONS: ReadonlySet<string> = new Set([
  *    只装前者的话，某些页面的 `navigator.permissions.query` 仍会报 granted。
  *
  * ⚠️ 将来的插件界面表面走 `persist:oint-plugin-<id>` 分区，**会另装一个全拒绝的处理器**
- *（插件界面不需要任何设备能力，连 fullscreen 都不需要）—— 见
- * docs/plugin-ui-surfaces-implementation.md §9。
+ *（插件界面不需要任何设备能力，连 fullscreen 都不需要）。
  */
 function restrictGuestPermissions(): void {
   const guest = session.fromPartition(BROWSER_PARTITION);
