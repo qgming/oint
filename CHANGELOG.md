@@ -33,6 +33,7 @@
 ### Fixed
 
 - **打包后 codemode 不可用**：`@earendil-works/pi-codemode` 改为直接依赖并 externalize；worker 随包解到 `app.asar.unpacked`，运行时显式指定 `workerUrl`（worker_threads 无法从 asar 加载入口）。
+- **Linux 下的路径授权规则**：`write` / `edit` 在 POSIX 上也能识别 `D:\...` 这类 Windows 绝对路径，不再把盘符下的首段（如 `dev`）误当作「始终允许」范围。
 - **插件热重载漏更新**：源码签名现在覆盖插件目录内所有文件（含入口 import 的 helper），不再只哈希入口文件。
 - **插件退出被硬杀**：父进程先关链路并留 1.5s 收尾窗口，worker 同时处理 SIGTERM / SIGINT，避免 durable 写入被截断。
 - **上下文工具估算重复计数**：内置扩展不再重复追加，刷新路径改用实际选中的工具表。
